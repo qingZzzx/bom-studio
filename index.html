@@ -44,7 +44,27 @@
     function sheetRows(book,name){return XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:'',raw:false,blankrows:false});}
     const dbOpen = () => new Promise((resolve,reject)=>{const request=indexedDB.open('bom-studio-project-db',1);request.onupgradeneeded=()=>request.result.createObjectStore('boards',{keyPath:'id'});request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
     const useCloudDatabase=()=>location.protocol!=='file:';
-    async function apiFetch(path,options={}){let token=sessionStorage.getItem('bom-studio-access-token');if(!token){token=prompt('请输入 BOM Studio 访问口令');if(token)sessionStorage.setItem('bom-studio-access-token',token);}if(!token)throw new Error('未提供访问口令。');const response=await fetch(path,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(options.headers||{})}});if(response.status===401){sessionStorage.removeItem('bom-studio-access-token');throw new Error('访问口令无效，请刷新页面后重试。');}const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||`服务器返回 ${response.status}`);return payload;}
+    let accessTokenRequest=null;
+    function requestAccessToken(message='请输入由管理员提供的 BOM Studio 访问口令。'){
+      const saved=sessionStorage.getItem('bom-studio-access-token');
+      if(saved)return Promise.resolve(saved);
+      if(accessTokenRequest)return accessTokenRequest;
+      accessTokenRequest=new Promise(resolve=>{
+        const overlay=document.createElement('div');
+        overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(16,34,58,.48);display:grid;place-items:center;padding:20px';
+        const panel=document.createElement('form');
+        panel.style.cssText='width:min(420px,100%);background:#fff;border-radius:12px;padding:24px;box-shadow:0 18px 55px rgba(8,29,56,.24)';
+        const title=document.createElement('h2');title.textContent='连接项目资料库';title.style.cssText='margin:0 0 8px;font-size:18px';
+        const hint=document.createElement('p');hint.textContent=message;hint.style.cssText='margin:0 0 16px;color:#75839a;font-size:13px';
+        const input=document.createElement('input');input.type='password';input.autocomplete='current-password';input.placeholder='访问口令';input.required=true;input.style.cssText='width:100%;border:1px solid #d7e1ee;border-radius:7px;padding:11px 12px;font:inherit;outline:none';
+        const error=document.createElement('div');error.style.cssText='min-height:20px;margin-top:7px;color:#c73950;font-size:12px';
+        const submit=document.createElement('button');submit.type='submit';submit.className='btn primary';submit.textContent='连接资料库';submit.style.cssText='width:100%;margin-top:8px';
+        panel.append(title,hint,input,error,submit);overlay.appendChild(panel);document.body.appendChild(overlay);setTimeout(()=>input.focus());
+        panel.addEventListener('submit',event=>{event.preventDefault();const token=input.value.trim();if(!token){error.textContent='请输入访问口令。';return;}sessionStorage.setItem('bom-studio-access-token',token);overlay.remove();accessTokenRequest=null;resolve(token);});
+      });
+      return accessTokenRequest;
+    }
+    async function apiFetch(path,options={}){let token=await requestAccessToken();const send=()=>fetch(path,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(options.headers||{})}});let response=await send();if(response.status===401){sessionStorage.removeItem('bom-studio-access-token');token=await requestAccessToken('访问口令无效，请重新输入。');response=await send();}const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||`服务器返回 ${response.status}`);return payload;}
     window.bomStudioApiFetch=apiFetch;
     async function localGetBoards(){const db=await dbOpen();return new Promise((resolve,reject)=>{const req=db.transaction('boards','readonly').objectStore('boards').getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);});}
     async function localSaveBoard(board){const db=await dbOpen();return new Promise((resolve,reject)=>{const req=db.transaction('boards','readwrite').objectStore('boards').put(board);req.onsuccess=()=>resolve();req.onerror=()=>reject(req.error);});}
