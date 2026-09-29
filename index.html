@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>派生 BOM 工作台</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    :root { --blue:#1465c8; --blue-dark:#0d4fa5; --line:#e7edf5; --text:#1b2a41; --muted:#75839a; --bg:#f5f8fc; --orange:#e98b24; --green:#13a87e; --red:#d9485f; }
+    *{box-sizing:border-box} body{margin:0;font:14px/1.45 "Microsoft YaHei",Arial,sans-serif;color:var(--text);background:var(--bg)}
+    .layout{display:grid;grid-template-columns:220px 1fr;min-height:100vh}.side{background:linear-gradient(180deg,#176bd0,#1762bf);color:#fff;position:relative}.brand{height:70px;padding:0 22px;display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px;letter-spacing:.3px;border-bottom:1px solid rgba(255,255,255,.14)}.brand-mark{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:#fff;color:#176bd0;font-size:17px}.menu{padding:18px 10px}.menu-title{font-size:11px;letter-spacing:1.3px;opacity:.7;padding:0 12px;margin:10px 0}.nav{display:flex;align-items:center;gap:12px;padding:12px;border-radius:7px;margin:4px 0;color:#dceaff}.nav.active{color:#fff;background:rgba(255,255,255,.18);font-weight:700}.nav-icon{width:20px;text-align:center;font-size:16px}.side-foot{position:absolute;bottom:20px;left:22px;right:22px;font-size:12px;color:#dbe9ff;opacity:.8}
+    .main{min-width:0}.top{height:70px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 28px}.crumb{font-size:13px;color:var(--muted)}.crumb strong{color:var(--text);font-size:16px;margin-right:8px}.user{display:flex;align-items:center;gap:9px;color:#58687e}.avatar{width:30px;height:30px;border-radius:50%;background:#d9e9ff;color:var(--blue);display:grid;place-items:center;font-weight:700}.content{padding:24px 28px 40px;max-width:1600px;margin:auto}.hero{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px}.hero h1{font-size:22px;margin:0 0 5px}.hero p{margin:0;color:var(--muted)}.tag{padding:5px 10px;border-radius:16px;background:#e9f2ff;color:var(--blue);font-size:12px}
+    .steps{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin-bottom:18px;display:flex;gap:0}.step{display:flex;gap:10px;align-items:center;flex:1;color:var(--muted);position:relative}.step:not(:last-child):after{content:"";height:1px;background:#dce5f0;position:absolute;left:42px;right:14px;top:17px;z-index:0}.step-num{position:relative;z-index:1;width:34px;height:34px;border:1px solid #cbd8e8;border-radius:50%;display:grid;place-items:center;background:#fff}.step.active{color:var(--blue);font-weight:700}.step.active .step-num{background:var(--blue);border-color:var(--blue);color:#fff}.step small{display:block;font-size:12px;font-weight:400;margin-top:1px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1.04fr .96fr;gap:18px}.card{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}.card-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.card-head h2{font-size:16px;margin:0}.card-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.card-body{padding:20px}.upload{border:1.5px dashed #b6cce9;border-radius:9px;background:#fbfdff;min-height:150px;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;transition:.18s;padding:20px}.upload:hover,.upload.drag{border-color:var(--blue);background:#f1f7ff}.file-icon{font-size:29px;margin-bottom:7px;color:var(--blue)}.upload b{display:block}.upload span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.upload input{display:none}.file-state{display:none;margin-top:12px;padding:10px 12px;border-radius:7px;background:#eff8f5;color:#177b62;align-items:center;gap:9px}.file-state.show{display:flex}.file-state button{margin-left:auto;border:0;background:transparent;color:#718096;font-size:17px;cursor:pointer}.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:15px}.field label{display:block;color:#56667b;font-size:12px;margin-bottom:6px}.field input,.field select,.command{width:100%;border:1px solid #d7e1ee;border-radius:6px;padding:9px 10px;color:var(--text);background:#fff;outline:none}.field input:focus,.field select:focus,.command:focus{border-color:#6ea5e9;box-shadow:0 0 0 3px #eaf3ff}.hint{margin:11px 0 0;color:var(--muted);font-size:12px}.command-wrap{margin-top:18px}.command{resize:vertical;min-height:82px;font:inherit}.examples{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.example{border:1px solid #d8e5f5;background:#f7fbff;color:#3b73b8;padding:4px 8px;border-radius:12px;font-size:12px;cursor:pointer}.btns{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.btn{border:1px solid #ccd8e7;background:#fff;color:#4e6078;border-radius:6px;padding:9px 14px;cursor:pointer;font:inherit}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}.btn.primary:hover{background:var(--blue-dark)}.btn:disabled{opacity:.55;cursor:not-allowed}
+    .result{margin-top:18px}.status{display:flex;gap:9px;align-items:center;background:#fff8e8;border:1px solid #f8dfac;border-radius:7px;color:#8a5a0b;padding:10px 12px;margin-bottom:14px}.status.ok{background:#edfbf6;border-color:#bcebdc;color:#177b62}.status.error{background:#fff1f3;border-color:#f4c8d0;color:#b72e47}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}.metric{border:1px solid var(--line);border-radius:8px;padding:14px}.metric .num{font-size:23px;font-weight:700;color:#263c5a}.metric .lab{font-size:12px;color:var(--muted);margin-top:3px}.table-wrap{border:1px solid var(--line);border-radius:8px;overflow:auto;max-height:440px}.bom-table{border-collapse:collapse;width:100%;min-width:740px;font-size:12px}.bom-table th{position:sticky;top:0;background:#f5f8fc;color:#52647d;text-align:left;font-weight:700;z-index:1}.bom-table td,.bom-table th{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}.bom-table tr:last-child td{border-bottom:0}.bom-table .matched{color:#128164;font-weight:700}.bom-table .pending{color:#c17717;font-weight:700}.bom-table input{width:100%;border:1px solid transparent;background:transparent;padding:3px;border-radius:3px;font:inherit}.bom-table input:focus{border-color:#7eb1eb;background:#fff}.audit{margin-top:14px;color:var(--muted);font-size:12px}.mapping{margin-top:18px}.mapping summary{cursor:pointer;color:#35669c;font-weight:700}.mapping-box{margin-top:10px;border:1px solid var(--line);border-radius:7px;padding:12px}.mapping-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:8px 0;align-items:center}.mapping-row span{font-size:12px;color:#5c6c80}.mapping-row select{width:100%;border:1px solid #d7e1ee;border-radius:5px;padding:6px;background:#fff}.empty{padding:35px 15px;text-align:center;color:#8190a5}.empty .empty-icon{font-size:28px;color:#a2bad7;margin-bottom:7px}.project-link{padding:0;border:0;background:transparent;color:var(--blue);font:inherit;font-weight:700;cursor:pointer;text-align:left}.project-link:hover{text-decoration:underline}
+    @media(max-width:960px){.layout{grid-template-columns:64px 1fr}.brand{padding:0;justify-content:center;font-size:0}.menu{padding:18px 7px}.menu-title,.nav:not(.active) span,.nav.active span,.side-foot{display:none}.nav{justify-content:center;padding:12px}.grid{grid-template-columns:1fr}.content{padding:18px}.top{padding:0 18px}.steps{overflow:auto}.step{min-width:190px}}@media(max-width:600px){.layout{grid-template-columns:1fr}.side{display:none}.hero{align-items:flex-start;gap:10px;flex-direction:column}.form-row{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}.top{height:58px}.steps{padding:14px}.content{padding:14px}}
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="side"><div class="brand"><span class="brand-mark">✦</span><span>BOM Studio</span></div><div class="menu"><div class="menu-title">工作台</div><div class="nav active"><i class="nav-icon">▣</i><span>派生 BOM</span></div><div class="nav"><i class="nav-icon">▤</i><span>项目资料库</span></div><div class="nav"><i class="nav-icon">◫</i><span>模板管理</span></div><div class="nav"><i class="nav-icon">◷</i><span>生成记录</span></div></div><div class="side-foot">初版 · 本地文件处理</div></aside>
+    <main class="main"><header class="top"><div class="crumb"><strong>派生 BOM 工作台</strong> 项目 / 物料 / 派生</div><div class="user"><span>硬件项目组</span><span class="avatar">HW</span></div></header>
+      <div class="content"><div class="hero"><div><h1>从项目大盘生成派生 BOM</h1><p>导入项目资料库与 BOM 模板，按型号、国家及用户命令形成可审核的物料清单。</p></div><span class="tag">数据仅在本地浏览器中处理</span></div>
+        <section class="steps"><div class="step active"><span class="step-num">1</span><div>导入大盘<small>保存到本地项目数据库</small></div></div><div class="step"><span class="step-num">2</span><div>选择项目<small>查看项目 BOM 明细</small></div></div><div class="step"><span class="step-num">3</span><div>生成与审核<small>形成可导出的派生 BOM</small></div></div></section>
+        <div class="grid"><section class="card"><div class="card-head"><div><h2>项目大盘数据库</h2><p>导入后将 2K BOM / 4K BOM 中的项目记录保存至当前浏览器。</p></div></div><div class="card-body"><div class="btns" style="justify-content:flex-start;margin-top:0"><button class="btn primary" id="loadSeedBtn">载入内置资料库</button><button class="btn" id="importBoardBtn">导入更新资料库</button></div><input id="projectFile" type="file" accept=".xlsx,.xls" hidden /><p class="hint">内置资料库来自本次提供的硬件资料库。生产环境请改用受控的资料库服务，而不要把敏感 BOM 放在公开静态站点中。</p><div class="file-state" id="projectState"><span>✓</span><span id="projectName"></span><button data-clear="project" title="仅移除当前会话文件">×</button></div><div id="boardStatus" class="status" style="display:none;margin-top:14px"></div><label class="upload" id="templateDrop" style="margin-top:15px"><div><div class="file-icon">▧</div><b>导入各专业 BOM 模板</b><span>电子、结构、包材等专业模板均可拖拽至此，或点击选择 .xlsx</span></div><input id="templateFile" type="file" accept=".xlsx,.xls" /></label><div class="file-state" id="templateState"><span>✓</span><span id="templateName"></span><button data-clear="template" title="移除文件">×</button></div><p class="hint">系统会自动识别标准字段。非标准模板可在右侧指定“物料名称”和“派生结果”列。</p></div></section>
+          <section class="card"><div class="card-head"><div><h2>派生指令</h2><p>可通过自然语言补充型号、销售国家、OS 或需优先确认的事项。</p></div></div><div class="card-body"><div class="form-row"><div class="field"><label>目标型号</label><select id="model"><option value="">请先导入资料或输入型号</option></select></div><div class="field"><label>目标国家 / 地区</label><select id="country"><option value="">自动识别 / 不限定</option></select></div></div><div class="form-row"><div class="field"><label>项目大盘工作表</label><select id="sourceSheet"><option value="">待导入</option></select></div><div class="field"><label>BOM 模板工作表</label><select id="templateSheet"><option value="">待导入</option></select></div></div><div class="command-wrap"><label class="field"><span>用户命令</span></label><textarea id="command" class="command" placeholder="例如：生成阿联酋 85Q70E 的派生 BOM，优先采用 4K BOM 中匹配的屏、机芯、遥控器、WIFI 与喇叭物料。">生成阿联酋 85Q70E 的派生 BOM，优先采用项目大盘中的匹配物料。</textarea><div class="examples"><span class="example" data-example="生成阿联酋 85Q60E 的派生 BOM">阿联酋 85Q60E</span><span class="example" data-example="生成阿联酋 85Q70E 的派生 BOM，按 4K BOM 匹配">阿联酋 85Q70E</span><span class="example" data-example="生成 85Q70E BOM，筛选 GTV 方案">指定 OS / 方案</span></div></div><div class="btns"><button class="btn" id="resetBtn">重置</button><button class="btn primary" id="generateBtn" disabled>生成派生 BOM</button></div></div></section></div>
+        <section class="card result"><div class="card-head"><div><h2>已入库项目</h2><p>点击项目名称，查看该型号对应的项目 BOM 内容，并将其作为派生 BOM 的项目来源。</p></div><button class="btn" id="deleteBoardBtn" disabled>删除当前大盘</button></div><div class="card-body"><div id="projectListEmpty" class="empty"><div class="empty-icon">▤</div>尚未导入项目大盘。请点击“导入大盘”建立本地项目库。</div><div id="projectListArea" hidden><div class="metrics"><div class="metric"><div class="num" id="boardMetric">0</div><div class="lab">已保存大盘</div></div><div class="metric"><div class="num" id="projectMetric">0</div><div class="lab">识别项目</div></div><div class="metric"><div class="num" id="sheetMetric">0</div><div class="lab">BOM 工作表</div></div></div><div class="table-wrap"><table class="bom-table"><thead><tr><th>项目型号</th><th>销售国家 / 地区</th><th>尺寸</th><th>机芯平台</th><th>OS</th><th>来源工作表</th><th>操作</th></tr></thead><tbody id="projectRows"></tbody></table></div><div class="audit" id="boardAudit"></div></div></div></section>
+        <section class="card result" id="projectDetailCard" hidden><div class="card-head"><div><h2 id="projectDetailTitle">项目 BOM 内容</h2><p id="projectDetailMeta">点击上方项目后显示。</p></div><button class="btn primary" id="useProjectBtn">用于派生 BOM</button></div><div class="card-body"><div class="table-wrap"><table class="bom-table"><thead id="projectDetailHead"></thead><tbody id="projectDetailRows"></tbody></table></div></div></section>
+        <section class="card result"><div class="card-head"><div><h2>派生结果</h2><p>黄色项目表示尚未从项目大盘中找到可信匹配，保留模板原值以便工程师复核。</p></div><button class="btn primary" id="exportBtn" disabled>导出派生 BOM</button></div><div class="card-body"><div id="resultEmpty" class="empty"><div class="empty-icon">▤</div>选择已入库项目并导入 BOM 模板后，将在此显示可编辑的派生 BOM。</div><div id="resultArea" hidden><div id="status" class="status"></div><div class="metrics"><div class="metric"><div class="num" id="totalMetric">0</div><div class="lab">模板物料行</div></div><div class="metric"><div class="num" id="matchedMetric">0</div><div class="lab">已自动匹配</div></div><div class="metric"><div class="num" id="pendingMetric">0</div><div class="lab">待工程确认</div></div></div><div class="table-wrap"><table class="bom-table"><thead><tr><th>序号</th><th>物料名称</th><th>基础 BOM 料号</th><th>新项目 BOM 物料</th><th>单机用量</th><th>匹配结果</th><th>来源字段</th></tr></thead><tbody id="resultRows"></tbody></table></div><div class="audit" id="audit"></div><details class="mapping"><summary>查看 / 调整物料字段映射</summary><div class="mapping-box"><p class="hint" style="margin-top:0">初版按字段名称和物料名称进行启发式匹配。可在此将模板物料类别绑定到项目大盘的具体列。</p><div id="mappingRows"></div></div></details></div></div></section>
+      </div>
+    </main>
+  </div>
+  <script>
+  (() => {
+    const app = { project:null, template:null, projectBook:null, templateBook:null, rows:[], mapping:{}, sourceRecord:null, boards:[], selectedBoardId:null, selectedProject:null };
+    const $ = id => document.getElementById(id);
+    const norm = v => String(v ?? '').replace(/[\s\n\r\-_/（）()：:]/g,'').toLowerCase();
+    const cellText = v => v === undefined || v === null ? '' : String(v).trim();
+    const isBlankRow = row => !row || row.every(v => !cellText(v));
+    const firstHeaderRow = (rows) => { let best=0, score=-1; rows.slice(0,12).forEach((r,i)=>{const s=r.filter(v=>cellText(v)).length + r.filter(v=>/型号|国家|物料|BOM|平台|尺寸|销售|机芯/.test(cellText(v))).length*4; if(s>score){score=s;best=i}}); return best; };
+    const rowsToObjects = rows => { const h=firstHeaderRow(rows), headers=rows[h].map((v,i)=>cellText(v)||`列${i+1}`); let carry={}; return rows.slice(h+1).filter(r=>!isBlankRow(r)).map((r, index)=>{const obj={_row:index+h+2}; headers.forEach((key,i)=>{let value=cellText(r[i]); if(!value && /销售国家|国家|大区|机芯平台|散料方式/.test(key)) value=carry[key]||''; if(value) carry[key]=value; obj[key]=value;});return obj;}); };
+    function bookFromFile(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=e=>{try{resolve(XLSX.read(e.target.result,{type:'array',cellFormula:true,cellText:true,cellDates:true,cellStyles:true,cellNF:true}))}catch(err){reject(err)}};reader.onerror=reject;reader.readAsArrayBuffer(file)})}
+    function sheetRows(book,name){return XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:'',raw:false,blankrows:false});}
+    const dbOpen = () => new Promise((resolve,reject)=>{const request=indexedDB.open('bom-studio-project-db',1);request.onupgradeneeded=()=>request.result.createObjectStore('boards',{keyPath:'id'});request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+    const useCloudDatabase=()=>location.protocol!=='file:';
+    async function apiFetch(path,options={}){let token=sessionStorage.getItem('bom-studio-access-token');if(!token){token=prompt('请输入 BOM Studio 访问口令');if(token)sessionStorage.setItem('bom-studio-access-token',token);}if(!token)throw new Error('未提供访问口令。');const response=await fetch(path,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(options.headers||{})}});if(response.status===401){sessionStorage.removeItem('bom-studio-access-token');throw new Error('访问口令无效，请刷新页面后重试。');}const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||`服务器返回 ${response.status}`);return payload;}
+    window.bomStudioApiFetch=apiFetch;
+    async function localGetBoards(){const db=await dbOpen();return new Promise((resolve,reject)=>{const req=db.transaction('boards','readonly').objectStore('boards').getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);});}
+    async function localSaveBoard(board){const db=await dbOpen();return new Promise((resolve,reject)=>{const req=db.transaction('boards','readwrite').objectStore('boards').put(board);req.onsuccess=()=>resolve();req.onerror=()=>reject(req.error);});}
+    async function localDeleteBoard(id){const db=await dbOpen();return new Promise((resolve,reject)=>{const req=db.transaction('boards','readwrite').objectStore('boards').delete(id);req.onsuccess=()=>resolve();req.onerror=()=>reject(req.error);});}
+    async function dbGetBoards(){if(!useCloudDatabase())return localGetBoards();const rows=await apiFetch('/api/boards');return rows.map(row=>({id:row.id,name:row.name,importedAt:row.imported_at,sheetNames:row.sheet_names||[],projects:row.projects||[]}));}
+    async function dbSaveBoard(board){if(!useCloudDatabase())return localSaveBoard(board);await apiFetch('/api/boards',{method:'PUT',body:JSON.stringify(board)});}
+    async function dbDeleteBoard(id){if(!useCloudDatabase())return localDeleteBoard(id);await apiFetch(`/api/boards?id=${encodeURIComponent(id)}`,{method:'DELETE'});}
+    function extractBoardProjects(book, boardId, boardName){const projects=[];book.SheetNames.filter(name=>/BOM/i.test(name)&&!/创建|模板/i.test(name)).forEach(sheetName=>{const records=rowsToObjects(sheetRows(book,sheetName));const headers=Object.keys(records[0]||{});const modelKey=findHeader(headers,['客户型号','型号','产品型号']);const countryKey=findHeader(headers,['销售国家','国家','销往地']);const sizeKey=findHeader(headers,['尺寸']);const platformKey=findHeader(headers,['机芯平台','平台']);const osKey=findHeader(headers,['OS']);records.forEach((bom,index)=>{const model=cellText(bom[modelKey]);if(!model)return;projects.push({id:`${boardId}:${sheetName}:${bom._row}:${index}`,boardId,boardName,sheetName,model,country:cellText(bom[countryKey]),size:cellText(bom[sizeKey]),platform:cellText(bom[platformKey]),os:cellText(bom[osKey]),bom});});});return projects;}
+    async function saveImportedBoard(file,book){const id=`board:${file.name}`;const projects=extractBoardProjects(book,id,file.name);if(!projects.length)throw new Error('未在文件中识别到含“BOM”的项目工作表或客户型号列。');const board={id,name:file.name,importedAt:new Date().toISOString(),sheetNames:book.SheetNames.filter(n=>/BOM/i.test(n)&&!/创建|模板/i.test(n)),projects};await dbSaveBoard(board);app.boards=await dbGetBoards();app.selectedBoardId=id;renderProjectLibrary();showBoardStatus(`已将“${file.name}”保存到项目资料库，识别到 ${projects.length} 个项目记录。`,'ok');}
+    function showBoardStatus(message,type){const el=$('boardStatus');el.style.display='flex';el.className='status '+type;el.textContent=message;}
+    async function loadProjectLibrary(){try{app.boards=(await dbGetBoards()).sort((a,b)=>String(b.importedAt).localeCompare(String(a.importedAt)));app.selectedBoardId=app.boards[0]?.id||null;renderProjectLibrary();}catch(error){showBoardStatus('项目资料库不可用：'+error.message,'error');}}
+    function allStoredProjects(){return app.boards.flatMap(board=>board.projects||[]);}
+    function renderProjectLibrary(){const projects=allStoredProjects();$('projectListEmpty').hidden=projects.length>0;$('projectListArea').hidden=!projects.length;$('deleteBoardBtn').disabled=!app.selectedBoardId;if(!projects.length)return;$('boardMetric').textContent=app.boards.length;$('projectMetric').textContent=projects.length;$('sheetMetric').textContent=new Set(app.boards.flatMap(b=>b.sheetNames||[])).size;$('projectRows').innerHTML=projects.map(p=>`<tr><td><button class="project-link" data-project-id="${escapeAttr(p.id)}">${escapeHtml(p.model)}</button></td><td>${escapeHtml(p.country||'—')}</td><td>${escapeHtml(p.size||'—')}</td><td>${escapeHtml(p.platform||'—')}</td><td>${escapeHtml(p.os||'—')}</td><td>${escapeHtml(p.sheetName)}</td><td><button class="btn" data-project-id="${escapeAttr(p.id)}">查看 BOM</button></td></tr>`).join('');$('boardAudit').textContent=`当前已保存 ${app.boards.length} 份项目大盘。项目列表来自导入时识别到的 BOM 工作表。`;document.querySelectorAll('[data-project-id]').forEach(button=>button.addEventListener('click',()=>viewProject(button.dataset.projectId)));}
+    function viewProject(id){const project=allStoredProjects().find(item=>item.id===id);if(!project)return;app.selectedProject=project;app.selectedBoardId=project.boardId;const entries=Object.entries(project.bom).filter(([key])=>key!=='_row');$('projectDetailCard').hidden=false;$('projectDetailTitle').textContent=`${project.model} · 项目 BOM 内容`;$('projectDetailMeta').textContent=`${project.boardName} / ${project.sheetName} / ${project.country||'未标注国家'}；以下为该项目在大盘中的原始 BOM 字段。`;$('projectDetailHead').innerHTML=`<tr>${entries.map(([key])=>`<th>${escapeHtml(key)}</th>`).join('')}</tr>`;$('projectDetailRows').innerHTML=`<tr>${entries.map(([,value])=>`<td>${escapeHtml(value||'—')}</td>`).join('')}</tr>`;window.scrollTo({top:$('projectDetailCard').offsetTop-80,behavior:'smooth'});}
+    function updateFile(kind,file,book){app[kind]=file;app[`${kind}Book`]=book;$(kind+'Name').textContent=`${file.name} · ${Math.ceil(file.size/1024)} KB`;$(kind+'State').classList.add('show');if(kind==='project'){fillSelect('sourceSheet',book.SheetNames,book.SheetNames.find(n=>/4K\s*BOM/i.test(n))||book.SheetNames[0]);}else{fillSelect('templateSheet',book.SheetNames,book.SheetNames[0]);} refreshSelectors();}
+    function fillSelect(id,values,selected){const el=$(id);el.innerHTML='';values.forEach(v=>el.add(new Option(v,v, false,v===selected)));}
+    async function handleFile(kind,file){if(!file)return;if(!window.XLSX){alert('Excel 解析组件未加载。请检查网络后刷新页面。');return}try{const book=await bookFromFile(file);if(kind==='template')app.templateBuffer=await file.arrayBuffer();updateFile(kind,file,book);if(kind==='project')await saveImportedBoard(file,book);}catch(e){if(kind==='project')showBoardStatus('导入失败：'+e.message,'error');else alert('无法读取此 Excel 文件：'+e.message)}}
+    function bindDrop(dropId,inputId,kind){const drop=$(dropId), input=$(inputId);drop.addEventListener('click',()=>input.click());input.addEventListener('change',e=>handleFile(kind,e.target.files[0]));['dragenter','dragover'].forEach(evt=>drop.addEventListener(evt,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(evt=>drop.addEventListener(evt,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>handleFile(kind,e.dataTransfer.files[0]));}
+    function projectObjects(){if(!app.projectBook)return[];return rowsToObjects(sheetRows(app.projectBook,$('sourceSheet').value));}
+    function findHeader(headers, aliases){return headers.find(h=>aliases.some(a=>norm(h).includes(norm(a))));}
+    function refreshSelectors(){if(app.projectBook){const records=projectObjects(), heads=Object.keys(records[0]||{});const modelKey=findHeader(heads,['客户型号','型号','产品型号']);const countryKey=findHeader(heads,['销售国家','国家','销往地']);const models=[...new Set(records.map(r=>r[modelKey]).filter(Boolean))].sort();const countries=[...new Set(records.map(r=>r[countryKey]).filter(Boolean))].sort();fillSelect('model',['',...models],$('model').value);fillSelect('country',['',...countries],$('country').value);} $('generateBtn').disabled=!(app.projectBook&&app.templateBook);}
+    function inferCommand(){const text=$('command').value;const modelOptions=[...$('model').options].map(o=>o.value).filter(Boolean);const model=modelOptions.find(m=>text.toUpperCase().includes(m.toUpperCase()));if(model)$('model').value=model;const countryOptions=[...$('country').options].map(o=>o.value).filter(Boolean);const aliases={'阿联酋':['阿联酋','UAE','迪拜'],'英国':['英国','UK'],'德国':['德国'],'沙特':['沙特'],'日本':['日本'],'美国':['美国']};for(const c of countryOptions){if(text.includes(c)||(aliases[c]||[]).some(a=>text.toUpperCase().includes(a.toUpperCase()))){$('country').value=c;break;}}}
+    const materialAliases={
+      '机芯':['机芯料号','主板料号','机芯'], '遥控器':['遥控器','遥控'], 'WIFI板/下挂件组件':['下挂件','WIFI','wifi'], '电源板':['电源板','电源'], '屏':['屏料号','面板料号','屏'], 'WIFI板连接线':['WIFI板连接线','下挂件线','WIFI连接线'], '屏线1':['屏线1','屏线'], '屏线2':['屏线2','屏线'], '喇叭（左右）':['喇叭料号','喇叭'], '喇叭线':['喇叭线','SPK线'], '主板供电DC连接线':['DC连接线','DC线'], '电池':['电池'], '电源线':['电源线']
+    };
+    function bestSourceColumn(name, headers){const saved=app.mapping[name];if(saved&&headers.includes(saved))return saved;const aliases=materialAliases[name]||[name];return headers.find(h=>aliases.some(a=>norm(h).includes(norm(a))))||'';}
+    function templateRows(){const rows=sheetRows(app.templateBook,$('templateSheet').value);const h=firstHeaderRow(rows), headers=rows[h].map((v,i)=>cellText(v)||`列${i+1}`);const nameIdx=headers.findIndex(h=>/物料名称/.test(h));const newIdx=headers.findIndex(h=>/新项目.*BOM.*物料|新项目BOM物料/.test(h));const baseIdx=headers.findIndex(h=>/基础.*BOM.*料号/.test(h));const qtyIdx=headers.findIndex(h=>/单机用量/.test(h));const noIdx=headers.findIndex(h=>/序号/.test(h));return {headers,h,rows:rows.slice(h+1).map((r,i)=>({raw:r, excelRow:i+h+2, name:cellText(r[nameIdx]), value:cellText(r[newIdx]), base:cellText(r[baseIdx]), qty:cellText(r[qtyIdx]), no:cellText(r[noIdx]), newIdx})).filter(r=>r.name),newIdx};}
+    function recordForSelection(records){const headers=Object.keys(records[0]||{});const modelKey=findHeader(headers,['客户型号','型号','产品型号']);const countryKey=findHeader(headers,['销售国家','国家','销往地']);const sizeKey=findHeader(headers,['尺寸']);const choice=records.filter(r=>(!$('model').value||r[modelKey]=== $('model').value)&&(!$('country').value||r[countryKey]=== $('country').value));let chosen=choice[0];if(!chosen&&$('model').value){const size=($('model').value.match(/\d{2,3}/)||[])[0];chosen=records.find(r=>(!size||r[sizeKey]===size)&&(!$('country').value||r[countryKey]=== $('country').value));}return {chosen,modelKey,countryKey,matchCount:choice.length};}
+    function renderMapping(headers, template){const unique=[...new Set(template.rows.map(r=>r.name))];$('mappingRows').innerHTML=unique.map(name=>{const selected=bestSourceColumn(name,headers);return `<div class="mapping-row"><span>${escapeHtml(name)}</span><select data-map="${escapeAttr(name)}"><option value="">不自动映射</option>${headers.filter(h=>h!=='_row').map(h=>`<option ${h===selected?'selected':''} value="${escapeAttr(h)}">${escapeHtml(h)}</option>`).join('')}</select></div>`}).join('');document.querySelectorAll('[data-map]').forEach(s=>s.addEventListener('change',()=>{app.mapping[s.dataset.map]=s.value;}));}
+    function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}function escapeAttr(s){return escapeHtml(s)}
+    function generate(){inferCommand();const template=templateRows();if(!template.rows.length){showStatus('未识别到 BOM 模板中的物料行。请确认已导入模板，并选择正确工作表。','error');return}let chosen,modelKey,countryKey,matchCount;if(app.selectedProject){chosen=app.selectedProject.bom;const headers=Object.keys(chosen);modelKey=findHeader(headers,['客户型号','型号','产品型号'])||'客户型号';countryKey=findHeader(headers,['销售国家','国家','销往地'])||'销售国家';matchCount=1;}else{const records=projectObjects();if(!records.length){showStatus('请先导入项目大盘并在“已入库项目”中选择一个项目。','error');return}({chosen,modelKey,countryKey,matchCount}=recordForSelection(records));if(!chosen){showStatus('未找到匹配项目记录。请检查型号、国家筛选或切换项目大盘工作表。','error');return}}const headers=Object.keys(chosen);app.sourceRecord=chosen;app.rows=template.rows.map(r=>{const col=bestSourceColumn(r.name,headers);const v=cellText(chosen[col]);const usable=v && !/待认可|^-$|^\/$/.test(v);return {...r, source:col, derived:usable?v:r.value, matched:!!usable};});renderResult(chosen,modelKey,countryKey,matchCount);renderMapping(headers,template);}
+    function renderResult(record,modelKey,countryKey,matchCount){const matched=app.rows.filter(r=>r.matched).length,pending=app.rows.length-matched;$('totalMetric').textContent=app.rows.length;$('matchedMetric').textContent=matched;$('pendingMetric').textContent=pending;$('resultRows').innerHTML=app.rows.map((r,i)=>`<tr><td>${escapeHtml(r.no||i+1)}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.base)}</td><td><input aria-label="${escapeAttr(r.name)} 的新项目料号" data-row="${i}" value="${escapeAttr(r.derived)}" /></td><td>${escapeHtml(r.qty)}</td><td class="${r.matched?'matched':'pending'}">${r.matched?'已匹配':'待确认'}</td><td>${escapeHtml(r.source||'—')}</td></tr>`).join('');document.querySelectorAll('[data-row]').forEach(input=>input.addEventListener('input',()=>{app.rows[Number(input.dataset.row)].derived=input.value;}));$('audit').textContent=`已选项目记录：${record[modelKey]||'未识别型号'} / ${record[countryKey]||'未识别国家'}；候选记录 ${matchCount||1} 条，当前采用第 ${record._row} 行。`;showStatus(`已完成初步派生：${matched} 项自动匹配，${pending} 项需要工程复核。未匹配项保留模板原值。`,'ok');$('resultEmpty').hidden=true;$('resultArea').hidden=false;$('exportBtn').disabled=false;}
+    function showStatus(msg,type=''){const el=$('status');el.className='status '+type;el.textContent=msg;}
+    function textCellXml(doc,cell,value){const ns='http://schemas.openxmlformats.org/spreadsheetml/2006/main';cell.setAttribute('t','inlineStr');while(cell.firstChild)cell.removeChild(cell.firstChild);const is=doc.createElementNS(ns,'is'),t=doc.createElementNS(ns,'t');if(/^\s|\s$/.test(value))t.setAttributeNS('http://www.w3.org/XML/1998/namespace','xml:space','preserve');t.textContent=value;is.appendChild(t);cell.appendChild(is);}
+    async function templateSheetPath(zip,sheetName){const workbook=await zip.file('xl/workbook.xml').async('string'),rels=await zip.file('xl/_rels/workbook.xml.rels').async('string');const parser=new DOMParser(),wbDoc=parser.parseFromString(workbook,'application/xml'),relDoc=parser.parseFromString(rels,'application/xml');const relNs='http://schemas.openxmlformats.org/officeDocument/2006/relationships';const sheet=[...wbDoc.getElementsByTagNameNS('http://schemas.openxmlformats.org/spreadsheetml/2006/main','sheet')].find(item=>item.getAttribute('name')===sheetName);if(!sheet)throw new Error('未找到模板工作表。');const relId=sheet.getAttributeNS(relNs,'id'),relation=[...relDoc.getElementsByTagNameNS('http://schemas.openxmlformats.org/package/2006/relationships','Relationship')].find(item=>item.getAttribute('Id')===relId);if(!relation)throw new Error('未找到模板工作表关系。');const target=relation.getAttribute('Target').replace(/^\//,'');return target.startsWith('xl/')?target:`xl/${target.replace(/^\.\//,'')}`;}
+    async function exportBook(){if(!app.rows.length)return;if(!window.JSZip||!app.templateBuffer){alert('模板原文件未保留。请重新导入 BOM 模板后再导出。');return}try{const zip=await JSZip.loadAsync(app.templateBuffer),path=await templateSheetPath(zip,$('templateSheet').value),xml=await zip.file(path).async('string'),doc=new DOMParser().parseFromString(xml,'application/xml'),ns='http://schemas.openxmlformats.org/spreadsheetml/2006/main',template=templateRows();app.rows.forEach(r=>{const ref=XLSX.utils.encode_cell({r:r.excelRow-1,c:template.newIdx}),cell=[...doc.getElementsByTagNameNS(ns,'c')].find(item=>item.getAttribute('r')===ref);if(!cell)throw new Error(`模板中未找到派生列单元格 ${ref}。`);textCellXml(doc,cell,String(r.derived??''));});zip.file(path,new XMLSerializer().serializeToString(doc));const file=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}}),model=$('model').value||'未命名项目',link=document.createElement('a');link.href=URL.createObjectURL(file);link.download=`派生BOM_${model}_${new Date().toISOString().slice(0,10)}.xlsx`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(link.href),1000);}catch(error){console.error(error);alert(`导出失败：${error.message}`);}}
+    $('importBoardBtn').addEventListener('click',()=>$('projectFile').click());$('projectFile').addEventListener('change',e=>handleFile('project',e.target.files[0]));bindDrop('templateDrop','templateFile','template');$('sourceSheet').addEventListener('change',refreshSelectors);$('generateBtn').addEventListener('click',generate);$('exportBtn').addEventListener('click',exportBook);$('useProjectBtn').addEventListener('click',()=>{if(!app.selectedProject)return;const modelSelect=$('model');if(![...modelSelect.options].some(o=>o.value===app.selectedProject.model))modelSelect.add(new Option(app.selectedProject.model,app.selectedProject.model));modelSelect.value=app.selectedProject.model;const countrySelect=$('country');if(app.selectedProject.country&&! [...countrySelect.options].some(o=>o.value===app.selectedProject.country))countrySelect.add(new Option(app.selectedProject.country,app.selectedProject.country));if(app.selectedProject.country)countrySelect.value=app.selectedProject.country;showBoardStatus(`已选中 ${app.selectedProject.model}，可在右上方导入 BOM 模板后生成派生 BOM。`,'ok');window.scrollTo({top:0,behavior:'smooth'});});$('deleteBoardBtn').addEventListener('click',async()=>{const board=app.boards.find(b=>b.id===app.selectedBoardId);if(!board||!confirm(`确定删除本地数据库中的“${board.name}”吗？`))return;await dbDeleteBoard(board.id);app.boards=await dbGetBoards();app.selectedBoardId=app.boards[0]?.id||null;app.selectedProject=null;$('projectDetailCard').hidden=true;renderProjectLibrary();showBoardStatus('已删除当前项目大盘。','ok');});$('resetBtn').addEventListener('click',()=>{app.rows=[];app.sourceRecord=null;$('model').value='';$('country').value='';$('command').value='';$('resultEmpty').hidden=false;$('resultArea').hidden=true;$('exportBtn').disabled=true;});document.querySelectorAll('[data-example]').forEach(e=>e.addEventListener('click',()=>{$('command').value=e.dataset.example;inferCommand();}));document.querySelectorAll('[data-clear]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const kind=b.dataset.clear;app[kind]=null;app[`${kind}Book`]=null;$(kind+'File').value='';$(kind+'State').classList.remove('show');refreshSelectors();}));loadProjectLibrary();
+  })();
+  </script>
+  <script>
+    (() => {
+      const seedButton = document.getElementById('loadSeedBtn');
+      const sourceInput = document.getElementById('projectFile');
+      if (!seedButton || !sourceInput) return;
+      if (location.protocol !== 'file:') {
+        seedButton.hidden = true;
+        document.querySelector('.hero .tag').textContent = '项目资料存储于 Supabase';
+        return;
+      }
+      seedButton.addEventListener('click', async () => {
+        seedButton.disabled = true;
+        const originalText = seedButton.textContent;
+        seedButton.textContent = '正在载入…';
+        try {
+          const response = await fetch('./data/project-library-2027.xlsx', { cache: 'no-store' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const file = new File([await response.blob()], '王牌项目硬件资料库-2027.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          sourceInput.files = transfer.files;
+          sourceInput.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (error) {
+          alert('内置资料库未能载入。请使用本地服务器或部署后的站点访问；也可以点击“导入更新资料库”手工选择文件。');
+        } finally {
+          seedButton.disabled = false;
+          seedButton.textContent = originalText;
+        }
+      });
+    })();
+  </script>
+  <script>
+    (() => {
+      const content = document.querySelector('.content');
+      const navItems = [...document.querySelectorAll('.side .nav')];
+      const templateDrop = document.getElementById('templateDrop');
+      const projectSection = document.getElementById('projectListEmpty')?.closest('section');
+      const resultSection = document.getElementById('resultEmpty')?.closest('section');
+      const historyKey = 'bom-studio-generation-history-v1';
+      if (!content || !templateDrop || !projectSection || !resultSection || navItems.length < 4) return;
+
+      const style = document.createElement('style');
+      style.textContent = '.nav[role="button"]{cursor:pointer}.nav[role="button"]:focus-visible{outline:2px solid #fff;outline-offset:2px}.workspace-card{margin-top:18px}.workspace-card .card-body{padding:18px 20px}.workspace-row{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}.workspace-row:last-child{border-bottom:0}.workspace-meta{color:var(--muted);font-size:12px;margin-top:3px}.history-list{max-height:330px;overflow:auto}.history-empty{color:var(--muted);padding:16px 0}.history-tag{font-size:12px;padding:4px 8px;border-radius:12px;background:#e9f2ff;color:var(--blue);white-space:nowrap}';
+      document.head.appendChild(style);
+
+      const templatePanel = document.createElement('section');
+      templatePanel.id = 'templateManager';
+      templatePanel.className = 'card workspace-card';
+      templatePanel.innerHTML = '<div class="card-head"><div><h2>模板管理</h2><p>查看当前导入的各专业 BOM 模板，并进入模板导入和工作表选择。</p></div><button class="btn" type="button" id="goTemplateImport">导入模板</button></div><div class="card-body" id="templateManagerBody"></div>';
+      projectSection.before(templatePanel);
+
+      const historyPanel = document.createElement('section');
+      historyPanel.id = 'generationHistory';
+      historyPanel.className = 'card workspace-card';
+      historyPanel.innerHTML = '<div class="card-head"><div><h2>生成记录</h2><p>记录保存在当前浏览器，仅用于追溯本地派生操作。</p></div><button class="btn" type="button" id="clearHistoryBtn">清空记录</button></div><div class="card-body"><div class="history-list" id="historyList"></div></div>';
+      resultSection.before(historyPanel);
+
+      function scrollToTarget(target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      function setActive(index) {
+        navItems.forEach((item, i) => item.classList.toggle('active', i === index));
+      }
+      const targets = [content, projectSection, templatePanel, historyPanel];
+      navItems.forEach((item, index) => {
+        item.setAttribute('role', 'button');
+        item.tabIndex = 0;
+        item.setAttribute('aria-label', item.textContent.trim());
+        const activate = () => { setActive(index); scrollToTarget(targets[index]); };
+        item.addEventListener('click', activate);
+        item.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } });
+      });
+
+      function refreshTemplatePanel() {
+        const body = document.getElementById('templateManagerBody');
+        const name = document.getElementById('templateName')?.textContent?.trim();
+        const sheet = document.getElementById('templateSheet')?.value;
+        body.replaceChildren();
+        if (!name) {
+          const empty = document.createElement('div');
+          empty.className = 'history-empty';
+          empty.textContent = '尚未导入 BOM 模板。可导入电子、结构、包材或软件专业的标准 Excel 模板。';
+          body.appendChild(empty);
+          return;
+        }
+        const row = document.createElement('div');
+        row.className = 'workspace-row';
+        const detail = document.createElement('div');
+        const title = document.createElement('strong');
+        title.textContent = name;
+        const meta = document.createElement('div');
+        meta.className = 'workspace-meta';
+        meta.textContent = `当前工作表：${sheet || '未选择'}。可返回导入区切换工作表或替换模板。`;
+        detail.append(title, meta);
+        const tag = document.createElement('span');
+        tag.className = 'history-tag';
+        tag.textContent = '已就绪';
+        row.append(detail, tag);
+        body.appendChild(row);
+      }
+      document.getElementById('goTemplateImport').addEventListener('click', () => { setActive(0); scrollToTarget(templateDrop); });
+      document.getElementById('templateFile').addEventListener('change', () => setTimeout(refreshTemplatePanel));
+      document.getElementById('templateSheet').addEventListener('change', refreshTemplatePanel);
+      refreshTemplatePanel();
+
+      let historyRecords = [];
+      async function loadHistory() {
+        if (location.protocol === 'file:') {
+          try { historyRecords = JSON.parse(localStorage.getItem(historyKey) || '[]'); } catch { historyRecords = []; }
+        } else {
+          try {
+            const rows = await window.bomStudioApiFetch('/api/generations');
+            historyRecords = rows.map(row => ({time:new Date(row.created_at).toLocaleString('zh-CN'),model:row.model,template:row.template,matched:row.matched,pending:row.pending}));
+          } catch (error) {
+            historyRecords = [];
+            console.warn('生成记录加载失败', error);
+          }
+        }
+        renderHistory();
+      }
+      async function saveHistory(record) {
+        if (location.protocol === 'file:') {
+          historyRecords = [record, ...historyRecords].slice(0, 30);
+          localStorage.setItem(historyKey, JSON.stringify(historyRecords));
+          return;
+        }
+        await window.bomStudioApiFetch('/api/generations',{method:'POST',body:JSON.stringify(record)});
+      }
+      function renderHistory() {
+        const list = document.getElementById('historyList');
+        const records = historyRecords;
+        list.replaceChildren();
+        if (!records.length) {
+          const empty = document.createElement('div');
+          empty.className = 'history-empty';
+          empty.textContent = '尚无派生记录。完成一次“生成派生 BOM”后会在此保留摘要。';
+          list.appendChild(empty);
+          return;
+        }
+        records.forEach(record => {
+          const row = document.createElement('div');
+          row.className = 'workspace-row';
+          const detail = document.createElement('div');
+          const title = document.createElement('strong');
+          title.textContent = `${record.model || '未命名型号'} · ${record.template || '未命名模板'}`;
+          const meta = document.createElement('div');
+          meta.className = 'workspace-meta';
+          meta.textContent = `${record.time}，自动匹配 ${record.matched} 项，待确认 ${record.pending} 项`;
+          detail.append(title, meta);
+          const tag = document.createElement('button');
+          tag.type = 'button';
+          tag.className = 'btn';
+          tag.textContent = '查看结果';
+          tag.addEventListener('click', () => { setActive(0); scrollToTarget(resultSection); });
+          row.append(detail, tag);
+          list.appendChild(row);
+        });
+      }
+      document.getElementById('clearHistoryBtn').addEventListener('click', async () => {
+        if (location.protocol === 'file:') localStorage.removeItem(historyKey);
+        else await window.bomStudioApiFetch('/api/generations',{method:'DELETE'});
+        historyRecords = [];
+        renderHistory();
+      });
+      document.getElementById('generateBtn').addEventListener('click', () => {
+        setTimeout(async () => {
+          if (document.getElementById('resultArea').hidden) return;
+          const record = {
+            time: new Date().toLocaleString('zh-CN'),
+            model: document.getElementById('model').value,
+            template: document.getElementById('templateName')?.textContent?.trim(),
+            matched: document.getElementById('matchedMetric').textContent,
+            pending: document.getElementById('pendingMetric').textContent
+          };
+          try { await saveHistory(record); await loadHistory(); } catch (error) { console.warn('生成记录保存失败', error); }
+        });
+      });
+      const exportButton = document.getElementById('exportBtn');
+      exportButton.textContent = '导出 Excel 派生 BOM';
+      exportButton.title = '以原始 Excel 模板为底稿，仅写入派生料号，保留模板的全部工作表与版式';
+      loadHistory();
+    })();
+  </script>
+  <script>
+    (() => {
+      const sourceSheet = document.getElementById('sourceSheet');
+      const templateSheet = document.getElementById('templateSheet');
+      const model = document.getElementById('model');
+      const country = document.getElementById('country');
+      const useProjectButton = document.getElementById('useProjectBtn');
+      const generateButton = document.getElementById('generateBtn');
+      const resetButton = document.getElementById('resetBtn');
+      const projectFile = document.getElementById('projectFile');
+      const deleteBoardButton = document.getElementById('deleteBoardBtn');
+      if (!sourceSheet || !templateSheet || !model || !country || !useProjectButton) return;
+
+      const style = document.createElement('style');
+      style.textContent = '.project-selection{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;margin-bottom:15px;border:1px solid #cfe0f7;border-radius:8px;background:#f7fbff}.project-selection strong{display:block;color:#263c5a}.project-selection small{display:block;margin-top:3px;color:var(--muted)}.project-selection .btn{white-space:nowrap}@media(max-width:600px){.project-selection{align-items:flex-start;flex-direction:column}}';
+      document.head.appendChild(style);
+
+      const sourceField = sourceSheet.closest('.field');
+      const sourceRow = sourceSheet.closest('.form-row');
+      sourceField.style.display = 'none';
+      templateSheet.closest('.field').style.gridColumn = '1 / -1';
+      model.closest('.form-row').style.display = 'none';
+      useProjectButton.textContent = '选中该项目并用于派生';
+
+      const instructionCard = generateButton.closest('.card');
+      const instructionBody = instructionCard.querySelector('.card-body');
+      const selection = document.createElement('div');
+      selection.className = 'project-selection';
+      selection.innerHTML = '<div><strong id="selectedProjectName">尚未选择项目</strong><small id="selectedProjectHint">请到“项目资料库”中查看并选中一个项目，再导入 BOM 模板。</small></div><button class="btn primary" type="button" id="chooseProjectFromLibrary">前往项目资料库</button>';
+      instructionBody.insertBefore(selection, instructionBody.firstChild);
+      const selectedName = document.getElementById('selectedProjectName');
+      const selectedHint = document.getElementById('selectedProjectHint');
+      let hasSelectedProject = false;
+
+      function syncGenerateAvailability() {
+        const templateReady = document.getElementById('templateState').classList.contains('show') && Boolean(templateSheet.value);
+        generateButton.disabled = !(hasSelectedProject && templateReady);
+      }
+
+      function clearSelection(message) {
+        hasSelectedProject = false;
+        selectedName.textContent = '尚未选择项目';
+        selectedHint.textContent = message || '请到“项目资料库”中查看并选中一个项目，再导入 BOM 模板。';
+        syncGenerateAvailability();
+      }
+      function confirmSelection() {
+        if (!model.value) return clearSelection();
+        hasSelectedProject = true;
+        selectedName.textContent = `${model.value}${country.value ? ` · ${country.value}` : ''}`;
+        selectedHint.textContent = '项目已锁定为本次派生来源。模板中的板块会从该项目的资料库记录中匹配。';
+        syncGenerateAvailability();
+      }
+      function goToLibrary() {
+        const nav = document.querySelectorAll('.side .nav')[1];
+        if (nav) nav.click();
+      }
+      document.getElementById('chooseProjectFromLibrary').addEventListener('click', goToLibrary);
+      useProjectButton.addEventListener('click', () => setTimeout(confirmSelection));
+      projectFile.addEventListener('change', () => setTimeout(() => clearSelection('资料库已更新。请在项目资料库中重新选择本次派生项目。')));
+      document.getElementById('templateFile').addEventListener('change', () => setTimeout(syncGenerateAvailability));
+      templateSheet.addEventListener('change', syncGenerateAvailability);
+      deleteBoardButton.addEventListener('click', () => setTimeout(() => clearSelection('当前资料库已删除。请重新导入资料库并选择项目。')));
+      resetButton.addEventListener('click', () => clearSelection());
+      document.querySelector('.hero h1').textContent = '从项目资料库生成派生 BOM';
+      document.querySelector('.hero p').textContent = '先在资料库中选中项目，再输入专业 BOM 模板，系统按模板板块生成可审核的 Excel BOM。';
+      const steps = [...document.querySelectorAll('.steps .step > div')];
+      [['加载资料库', '保存项目资料'], ['选择项目', '锁定本次派生来源'], ['匹配板块并导出', '生成 Excel BOM']].forEach(([title, subtitle], index) => {
+        if (!steps[index]) return;
+        steps[index].childNodes[0].nodeValue = title;
+        steps[index].querySelector('small').textContent = subtitle;
+      });
+      const sourceCard = document.getElementById('importBoardBtn').closest('.card');
+      sourceCard.querySelector('h2').textContent = '项目资料库';
+      sourceCard.querySelector('.card-head p').textContent = '资料库保存项目记录，派生时从已选项目的完整物料字段中匹配模板板块。';
+      instructionCard.querySelector('.card-head p').textContent = '先在项目资料库中选中项目，再选择 BOM 模板工作表并生成派生结果。';
+      const projectListCard = document.getElementById('projectListEmpty').closest('section');
+      projectListCard.querySelector('h2').textContent = '资料库项目';
+      projectListCard.querySelector('.card-head p').textContent = '查看资料库中的项目记录。选中项目后，才能导入模板并生成派生 BOM。';
+      deleteBoardButton.textContent = '删除当前资料库';
+      const command = document.getElementById('command');
+      command.value = '生成派生 BOM，并按模板板块从已选项目的资料库记录中匹配物料。';
+      command.placeholder = '例如：按电子 BOM 模板生成已选项目的派生 BOM，并优先标记未匹配或待确认的物料。';
+      syncGenerateAvailability();
+      generateButton.addEventListener('click', event => {
+        if (hasSelectedProject) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        selectedHint.textContent = '尚未选中项目，无法生成派生 BOM。请先到“项目资料库”选择项目并点击“选中该项目并用于派生”。';
+        selection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, true);
+    })();
+  </script>
+</body>
+</html>

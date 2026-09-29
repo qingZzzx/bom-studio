@@ -1,0 +1,9 @@
+{
+  "name": "bom-studio",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx wrangler@latest pages dev .",
+    "deploy": "npx wrangler@latest pages deploy . --project-name bom-studio"
+  }
+}
