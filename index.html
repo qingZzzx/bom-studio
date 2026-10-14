@@ -78,7 +78,7 @@
   (() => {
     const app = { project:null, template:null, projectBook:null, templateBook:null, rows:[], mapping:{}, sourceRecord:null, boards:[], selectedBoardId:null, selectedProject:null, projectFilters:{country:'',size:'',platform:'',os:'',sheetName:''} };
     const $ = id => document.getElementById(id);
-    window.bomStudioInternal = { state: app, template: () => templateRows() };
+    window.bomStudioInternal = { state: app, template: () => templateRows(), match: (name, headers) => bestSourceColumn(name, headers), score: (name, header) => matchScore(name, header), sheetPath: (zip, name) => templateSheetPath(zip, name) };
     const norm = v => String(v ?? '').replace(/[\s\n\r\-_/（）()：:]/g,'').toLowerCase();
     const cellText = v => v === undefined || v === null ? '' : String(v).trim();
     const isBlankRow = row => !row || row.every(v => !cellText(v));
@@ -167,9 +167,18 @@
     function refreshSelectors(){if(app.projectBook){const records=projectObjects(), heads=Object.keys(records[0]||{});const modelKey=findHeader(heads,['客户型号','型号','产品型号']);const countryKey=findHeader(heads,['销售国家','国家','销往地']);const models=[...new Set(records.map(r=>r[modelKey]).filter(Boolean))].sort();const countries=[...new Set(records.map(r=>r[countryKey]).filter(Boolean))].sort();fillSelect('model',['',...models],$('model').value);fillSelect('country',['',...countries],$('country').value);} $('generateBtn').disabled=!(app.projectBook&&app.templateBook);}
     function inferCommand(){const text=$('command').value;const modelOptions=[...$('model').options].map(o=>o.value).filter(Boolean);const model=modelOptions.find(m=>text.toUpperCase().includes(m.toUpperCase()));if(model)$('model').value=model;const countryOptions=[...$('country').options].map(o=>o.value).filter(Boolean);const aliases={'阿联酋':['阿联酋','UAE','迪拜'],'英国':['英国','UK'],'德国':['德国'],'沙特':['沙特'],'日本':['日本'],'美国':['美国']};for(const c of countryOptions){if(text.includes(c)||(aliases[c]||[]).some(a=>text.toUpperCase().includes(a.toUpperCase()))){$('country').value=c;break;}}}
     const materialAliases={
-      '机芯':['机芯料号','主板料号','机芯'], '遥控器':['遥控器','遥控'], 'WIFI板/下挂件组件':['下挂件','WIFI','wifi'], '电源板':['电源板','电源'], '屏':['屏料号','面板料号','屏'], 'WIFI板连接线':['WIFI板连接线','下挂件线','WIFI连接线'], '屏线1':['屏线1','屏线'], '屏线2':['屏线2','屏线'], '喇叭（左右）':['喇叭料号','喇叭'], '喇叭线':['喇叭线','SPK线'], '主板供电DC连接线':['DC连接线','DC线'], '电池':['电池'], '电源线':['电源线']
+      '机芯':['机芯物编','机芯料号','主板料号','机芯'], '遥控器':['遥控器','遥控'], 'WIFI板/下挂件组件':['下挂件','WIFI','wifi'], '电源板':['电源物编','电源板'], '屏':['屏料号','面板料号','屏'], 'WIFI板连接线':['WIFI板连接线','下挂件线','WIFI连接线'], '屏线1':['屏线1','屏线'], '屏线2':['屏线2','屏线'], '喇叭（左右）':['喇叭物编','喇叭料号','喇叭'], '喇叭线':['喇叭线','SPK线'], '主板供电DC连接线':['DC连接线','DC线'], '电池':['电池'], '电源线':['电源线']
     };
-    function bestSourceColumn(name, headers){const saved=app.mapping[name];if(saved&&headers.includes(saved))return saved;const aliases=materialAliases[name]||[name];return headers.find(h=>aliases.some(a=>norm(h).includes(norm(a))))||'';}
+    function matchScore(name, header){const text=cellText(header),n=norm(name),h=norm(header);if(!n||!h||h==='_row')return 0;if(isAttributeHeader(text))return 0;if(hasComponentConflict(name,header))return 0;let best=0;if(n===h)best=100;else if(h.startsWith(n))best=92;else if(n.startsWith(h))best=88;else if(h.includes(n))best=74;else{const aliases=(materialAliases[name]||[]).map(norm).filter(Boolean);const marked=sourceTokenRe.test(text);aliases.forEach(a=>{if(a===h)best=Math.max(best,90);else if(h.startsWith(a))best=Math.max(best,marked?80:66);else if(a.startsWith(h))best=Math.max(best,62);else if(h.includes(a))best=Math.max(best,40);});}if(best>0&&partTokenRe.test(text))best+=4;return best;}
+    const MATCH_MIN_SCORE=74;
+    const attributeHeaderRe=/(命名|名称|型号|描述|规格|说明|品牌|厂商|供应商|产地|材质|备注|平台|方案|制式|功率|亮度|色域|认证|责任人|交付件|走货方式|散料方式|区域|国家|地区|大区|尺寸|序号|用量|数量|日期|版本|文本|os)/i;
+    const partTokenRe=/(料号|物编|物料|编码|编号|pn|part\s*no)/i;
+    const sourceTokenRe=/(客供|自采|客指|外购)/;
+    function isAttributeHeader(header){return attributeHeaderRe.test(cellText(header));}
+    function isMetadataHeader(header){return isAttributeHeader(header);}
+    const componentNounRe=/(板|线|屏|喇叭|机芯|遥控器|电池|组件|盒|支架|插头|后壳|底座)/g;
+    function hasComponentConflict(name, header){const n=norm(name),h=norm(header);const inName=[...new Set(n.match(componentNounRe)||[])];const inHeader=[...new Set(h.match(componentNounRe)||[])];if(!inName.length||!inHeader.length)return false;return !inHeader.some(x=>inName.includes(x));}
+    function bestSourceColumn(name, headers){const saved=app.mapping[name];if(saved&&headers.includes(saved))return saved;const aliases=(materialAliases[name]||[]).map(norm).filter(Boolean);const candidates=headers.filter(h=>h!=='_row'&&!isMetadataHeader(h)).map((h,index)=>{const score=matchScore(name,h);const rank=aliases.findIndex(a=>norm(h).includes(a));return {h,score,rank:rank<0?999:rank,index};}).filter(c=>c.score>=MATCH_MIN_SCORE);if(!candidates.length)return '';candidates.sort((a,b)=>b.score-a.score||a.rank-b.rank||a.index-b.index);return candidates[0].h;}
     function templateRows(){const rows=sheetRows(app.templateBook,$('templateSheet').value);const h=firstHeaderRow(rows), headers=rows[h].map((v,i)=>cellText(v)||`列${i+1}`);const nameIdx=headers.findIndex(h=>/物料名称/.test(h));const newIdx=headers.findIndex(h=>/新项目.*BOM.*物料|新项目BOM物料/.test(h));const baseIdx=headers.findIndex(h=>/基础.*BOM.*料号/.test(h));const qtyIdx=headers.findIndex(h=>/单机用量/.test(h));const noIdx=headers.findIndex(h=>/序号/.test(h));const changedIdx=headers.findIndex(h=>/是否更改|是否变更/.test(h));return {headers,h,changedIdx,rows:rows.slice(h+1).map((r,i)=>({raw:r, excelRow:i+h+2, name:cellText(r[nameIdx]), value:cellText(r[newIdx]), base:cellText(r[baseIdx]), qty:cellText(r[qtyIdx]), no:cellText(r[noIdx]), changedFlag:changedIdx>=0?cellText(r[changedIdx]):'', newIdx})).filter(r=>r.name),newIdx};}
     function recordForSelection(records){const headers=Object.keys(records[0]||{});const modelKey=findHeader(headers,['客户型号','型号','产品型号']);const countryKey=findHeader(headers,['销售国家','国家','销往地']);const sizeKey=findHeader(headers,['尺寸']);const choice=records.filter(r=>(!$('model').value||r[modelKey]=== $('model').value)&&(!$('country').value||r[countryKey]=== $('country').value));let chosen=choice[0];if(!chosen&&$('model').value){const size=($('model').value.match(/\d{2,3}/)||[])[0];chosen=records.find(r=>(!size||r[sizeKey]===size)&&(!$('country').value||r[countryKey]=== $('country').value));}return {chosen,modelKey,countryKey,matchCount:choice.length};}
     function renderMapping(headers, template){const unique=[...new Set(template.rows.map(r=>r.name))];$('mappingRows').innerHTML=unique.map(name=>{const selected=bestSourceColumn(name,headers);return `<div class="mapping-row"><span>${escapeHtml(name)}</span><select data-map="${escapeAttr(name)}"><option value="">不自动映射</option>${headers.filter(h=>h!=='_row').map(h=>`<option ${h===selected?'selected':''} value="${escapeAttr(h)}">${escapeHtml(h)}</option>`).join('')}</select></div>`}).join('');document.querySelectorAll('[data-map]').forEach(s=>s.addEventListener('change',()=>{app.mapping[s.dataset.map]=s.value;}));}
@@ -394,6 +403,28 @@
       const DIFF_LABEL = { same: '相同', changed: '不同', unknown: '待确认' };
       const safe = value => String(value ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
       let suggestions = [];
+      let extraSuggestions = [];
+      let preAiValues = new Map();
+      let exportBtn = null;
+      (function setupAiExtras() {
+        const headRow = aiRows.closest('table')?.querySelector('thead tr');
+        if (headRow && !headRow.querySelector('[data-col="action"]')) {
+          const th = document.createElement('th');
+          th.dataset.col = 'action';
+          th.textContent = '处理';
+          headRow.appendChild(th);
+        }
+        const actions = aiPanel.querySelector('.btns');
+        if (actions && !document.getElementById('aiExportBtn')) {
+          exportBtn = document.createElement('button');
+          exportBtn.type = 'button';
+          exportBtn.className = 'btn primary';
+          exportBtn.id = 'aiExportBtn';
+          exportBtn.textContent = '导出变更清单 Excel';
+          exportBtn.disabled = true;
+          actions.appendChild(exportBtn);
+        }
+      })();
 
       function classify(base, derived) {
         if (!base || !derived) return 'unknown';
@@ -417,11 +448,13 @@
 
       function resetPanel() {
         suggestions = [];
+        extraSuggestions = [];
         aiPanel.hidden = true;
         aiRows.innerHTML = '';
         aiSummary.textContent = '';
         aiHint.textContent = '';
         aiApply.disabled = true;
+        if (exportBtn) exportBtn.disabled = true;
         aiApply.textContent = '应用 AI 建议到派生结果';
       }
 
@@ -433,26 +466,201 @@
 
       function renderSuggestions(rows, summary) {
         suggestions = rows;
-        const counts = rows.reduce((acc, row) => {
-          const key = classify(row.base, row.derived);
+        const all = [...rows, ...extraSuggestions];
+        const counts = all.reduce((acc, row) => {
+          const key = decisionOf(row);
           acc[key] = (acc[key] || 0) + 1;
           return acc;
         }, {});
         aiSummary.textContent = summary
-          || `共 ${rows.length} 行：与基础BOM相同 ${counts.same || 0} 行，不同 ${counts.changed || 0} 行，待确认 ${counts.unknown || 0} 行。`;
-        aiRows.innerHTML = rows.map(row => {
+          ? `AI 建议：${summary}（保留 ${counts.keep || 0} 行，删除 ${counts.drop || 0} 行，模板外新增 ${counts.add || 0} 行）`
+          : `AI 建议：共 ${all.length} 行，保留 ${counts.keep || 0} 行，删除 ${counts.drop || 0} 行，模板外新增 ${counts.add || 0} 行。`;
+        aiRows.innerHTML = all.map(row => {
           const diff = classify(row.base, row.derived);
+          const decision = decisionOf(row);
+          const decisionLabel = row.extra
+            ? '新增（模板外）'
+            : (decision === 'drop' ? '删除（无差异）' : '保留');
           const confidence = Number.isFinite(Number(row.confidence)) ? Math.round(Number(row.confidence) * 100) + '%' : '—';
           return `<tr><td>${safe(row.no)}</td><td>${safe(row.name)}</td><td>${safe(row.base || '—')}</td>`
             + `<td>${safe(row.derived || '—')}</td>`
             + `<td><span class="diff-tag diff-${diff}">${DIFF_LABEL[diff]}</span></td>`
+            + `<td><span class="diff-tag ${decision === 'drop' ? 'diff-unknown' : 'diff-changed'}">${safe(decisionLabel)}</span></td>`
             + `<td>${confidence}</td><td><span class="ai-reason">${safe(row.reason || '—')}</span></td></tr>`;
         }).join('');
         const applicable = rows.filter(row => row.derived).length;
         aiApply.disabled = applicable === 0;
+        if (exportBtn) exportBtn.disabled = all.length === 0;
         aiHint.textContent = applicable
-          ? `可直接把 ${applicable} 行建议值写入“新项目 BOM 物料”列；写入后仍可手工修改，未取到的行保持原样。`
+          ? `可直接把 ${applicable} 行建议值写入“新项目 BOM 物料”列；“导出变更清单”会删除无差异行，并追加模板外的新增行。`
           : '本次没有可写入的建议值，请检查项目资料库字段是否完整。';
+      }
+
+      function decisionOf(row) {
+        if (row.extra) return 'add';
+        const derived = String(row.derived || '').trim();
+        const base = String(row.base || '').trim();
+        if (!derived || !base) return 'keep';
+        return norm(derived) === norm(base) ? 'drop' : 'keep';
+      }
+
+      function colLetter(index) {
+        let n = index, out = '';
+        while (n >= 0) { out = String.fromCharCode(65 + (n % 26)) + out; n = Math.floor(n / 26) - 1; }
+        return out;
+      }
+      function xmlEscapeText(value) {
+        return String(value ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      }
+      function findColIndex(headers, re) {
+        return (headers || []).findIndex(h => re.test(String(h || '')));
+      }
+      function setCellText(rowXml, col, value) {
+        const pattern = new RegExp('<c r="' + col + '(\\d+)"([^>]*?)(/>|>[\\s\\S]*?</c>)');
+        const match = rowXml.match(pattern);
+        if (!match) return rowXml;
+        const style = (match[2] || '').replace(/\st="[^"]*"/g, '');
+        return rowXml.replace(pattern, '<c r="' + col + match[1] + '"' + style + ' t="inlineStr"><is><t xml:space="preserve">' + xmlEscapeText(value) + '</t></is></c>');
+      }
+      function clearCellText(rowXml, col) {
+        const pattern = new RegExp('<c r="' + col + '(\\d+)"([^>]*?)(/>|>[\\s\\S]*?</c>)');
+        const match = rowXml.match(pattern);
+        if (!match) return rowXml;
+        const style = (match[2] || '').replace(/\st="[^"]*"/g, '');
+        return rowXml.replace(pattern, '<c r="' + col + match[1] + '"' + style + '/>');
+      }
+      function renumberRow(rowXml, newRow) {
+        const withRow = rowXml.replace(/<row([^>]*?)\sr="\d+"/, '<row$1 r="' + newRow + '"');
+        return withRow.replace(/<c r="([A-Z]+)\d+"/g, (all, col) => '<c r="' + col + newRow + '"');
+      }
+
+      async function exportChangeList() {
+        const st = state();
+        if (!st?.templateBuffer) throw new Error('模板原文件未保留，请重新导入 BOM 模板后再导出。');
+        if (!suggestions.length && !extraSuggestions.length) throw new Error('请先执行 AI 差异分析。');
+        const template = internal().template();
+        const headerRow = template.h + 1;
+        const newIdx = template.newIdx;
+        if (newIdx < 0) throw new Error('模板中未找到“新项目 BOM 物料”列。');
+        const newCol = colLetter(newIdx);
+        const changedIdx = findColIndex(template.headers, /是否更改|是否变更/);
+        const changedCol = changedIdx >= 0 ? colLetter(changedIdx) : '';
+        const noCol = colLetter(Math.max(0, findColIndex(template.headers, /序号/)));
+        const posCol = colLetter(Math.max(0, findColIndex(template.headers, /放置组件位置|位置/)));
+        const nameCol = colLetter(Math.max(0, findColIndex(template.headers, /物料名称/)));
+        const baseCol = colLetter(Math.max(0, findColIndex(template.headers, /基础.*BOM.*料号/)));
+        const qtyCol = colLetter(Math.max(0, findColIndex(template.headers, /单机用量|用量/)));
+        const noteIdx = findColIndex(template.headers, /备注/);
+        const noteCol = noteIdx >= 0 ? colLetter(noteIdx) : '';
+
+        const zip = await JSZip.loadAsync(st.templateBuffer);
+        const path = await internal().sheetPath(zip, $('templateSheet').value);
+        const xml = await zip.file(path).async('string');
+
+        const rowMap = new Map();
+        const rowRe = /<row\b[^>]*?\/>|<row\b[^>]*?>[\s\S]*?<\/row>/g;
+        let hit;
+        while ((hit = rowRe.exec(xml)) !== null) {
+          const ref = hit[0].match(/\sr="(\d+)"/);
+          if (ref) rowMap.set(Number(ref[1]), hit[0]);
+        }
+        if (!rowMap.size) throw new Error('未能解析模板工作表行。');
+
+        const live = sourceRows();
+        const liveByIndex = new Map(live.map(r => [r.index, r]));
+        const kept = [];
+        let droppedCount = 0;
+        suggestions.forEach((row, i) => {
+          const liveRow = liveByIndex.get(row.index) ?? live[i];
+          const liveValue = String(liveRow?.input?.value ?? '').trim();
+          const before = preAiValues.get(row.index);
+          const untouched = before !== undefined && liveValue === String(before).trim();
+          const derived = untouched ? String(row.derived || '').trim() : liveValue;
+          if (liveRow?.input && liveRow.input.value !== derived) {
+            liveRow.input.value = derived;
+            liveRow.input.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          const merged = { ...row, derived };
+          if (decisionOf(merged) === 'drop') { droppedCount += 1; return; }
+          kept.push({ ...merged, excelRow: headerRow + 1 + i });
+        });
+
+        const headerXml = [];
+        for (let n = 1; n <= headerRow; n += 1) if (rowMap.has(n)) headerXml.push(rowMap.get(n));
+
+        const origToNew = new Map(kept.map((row, idx) => [row.excelRow, headerRow + 1 + idx]));
+        const inherit = new Map();
+        const mergeRe = /<mergeCell ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/g;
+        let mergeHit;
+        while ((mergeHit = mergeRe.exec(xml)) !== null) {
+          const col = mergeHit[1], start = Number(mergeHit[2]), end = Number(mergeHit[4]);
+          if (start <= headerRow || end <= start) continue;
+          const srcRow = rowMap.get(start);
+          if (!srcRow) continue;
+          const cellHit = srcRow.match(new RegExp('<c r="' + col + start + '"([^>]*?)(/>|>[\\s\\S]*?</c>)'));
+          if (!cellHit) continue;
+          for (let n = start; n <= end; n += 1) {
+            const newRow = origToNew.get(n);
+            if (!newRow) continue;
+            const list = inherit.get(newRow) || [];
+            list.push({ col, xml: '<c r="' + col + newRow + '"' + cellHit[1] + cellHit[2] });
+            inherit.set(newRow, list);
+          }
+        }
+
+        let cursor = headerRow + 1;
+        const body = [];
+        kept.forEach(row => {
+          const src = rowMap.get(row.excelRow);
+          if (!src) return;
+          let out = renumberRow(src, cursor);
+          (inherit.get(cursor) || []).forEach(item => {
+            const cellRe = new RegExp('<c r="' + item.col + cursor + '"([^>]*?)(/>|>[\\s\\S]*?</c>)');
+            if (cellRe.test(out)) out = out.replace(cellRe, item.xml);
+          });
+          out = setCellText(out, newCol, row.derived);
+          if (changedCol) out = setCellText(out, changedCol, norm(row.derived) === norm(row.base) ? '否' : '是');
+          body.push(out);
+          cursor += 1;
+        });
+
+        const prototype = rowMap.get(headerRow + 1) || rowMap.get(headerRow) || '';
+        const maxNo = kept.reduce((acc, row) => Math.max(acc, Number(String(row.no || '').trim()) || 0), 0);
+        extraSuggestions.forEach((row, i) => {
+          let out = renumberRow(prototype, cursor);
+          [noCol, posCol, nameCol, baseCol, newCol, qtyCol, noteCol, changedCol].filter(Boolean).forEach(col => { out = clearCellText(out, col); });
+          out = setCellText(out, noCol, String(maxNo + i + 1));
+          if (posCol) out = setCellText(out, posCol, '新增');
+          out = setCellText(out, nameCol, row.name || '');
+          out = setCellText(out, baseCol, '');
+          out = setCellText(out, newCol, row.derived || '');
+          if (qtyCol) out = setCellText(out, qtyCol, String(row.qty || '1'));
+          if (changedCol) out = setCellText(out, changedCol, '是');
+          if (noteCol) out = setCellText(out, noteCol, row.reason || '模板外新增物料');
+          body.push(out);
+          cursor += 1;
+        });
+
+        const lastRow = cursor - 1;
+        const lastCol = colLetter(Math.max(0, template.headers.length - 1));
+        let outXml = xml.replace(/<mergeCell ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/g, (all, c1, r1) => (Number(r1) > headerRow ? '' : all));
+        outXml = outXml.replace(/<dimension ref="[^"]*"\/>/, '<dimension ref="A1:' + lastCol + lastRow + '"/>');
+        const ds = outXml.indexOf('<sheetData');
+        const de = outXml.indexOf('</sheetData>');
+        if (ds < 0 || de < 0) throw new Error('模板工作表结构异常，未找到 sheetData 节点。');
+        outXml = outXml.slice(0, ds) + '<sheetData>' + headerXml.concat(body).join('') + '</sheetData>' + outXml.slice(de + '</sheetData>'.length);
+
+        zip.file(path, outXml);
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+        const model = $('model')?.value || '未命名项目';
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = '派生BOM变更清单_' + model + '_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        return { kept: kept.length, dropped: droppedCount, added: extraSuggestions.length };
       }
 
       const BATCH_SIZE = 40;
@@ -494,7 +702,9 @@
           instruction: $('command')?.value || '',
         };
         const batches = chunk(rows, BATCH_SIZE);
+        preAiValues = new Map(rows.map(row => [row.index, row.input?.value ?? '']));
         const hits = new Map();
+        const extras = [];
         const summaries = [];
         let degraded = false;
         let truncated = false;
@@ -510,7 +720,11 @@
               const index = Number(item?.index);
               if (Number.isFinite(index)) hits.set(index, item);
             });
+            (Array.isArray(result.extraRows) ? result.extraRows : []).forEach(item => {
+              if (item?.name && item?.derived) extras.push({ ...item, extra: true });
+            });
           }
+          extraSuggestions = extras;
           renderSuggestions(rows.map((row, index) => {
             const hit = hits.get(row.index) ?? hits.get(index) ?? {};
             return {
@@ -560,6 +774,22 @@
 
       aiBtn.addEventListener('click', runAi);
       aiApply.addEventListener('click', applySuggestions);
+      if (exportBtn) {
+        exportBtn.addEventListener('click', async () => {
+          const original = exportBtn.textContent;
+          exportBtn.disabled = true;
+          exportBtn.textContent = '正在导出…';
+          try {
+            const stats = await exportChangeList();
+            aiHint.textContent = `已导出变更清单：保留 ${stats.kept} 行，删除 ${stats.dropped} 行，模板外新增 ${stats.added} 行。`;
+          } catch (error) {
+            aiHint.textContent = `导出失败：${error.message}`;
+          } finally {
+            exportBtn.disabled = false;
+            exportBtn.textContent = original;
+          }
+        });
+      }
 
       const observer = new MutationObserver(() => { resetPanel(); syncAvailability(); });
       const resultTarget = $('resultRows');

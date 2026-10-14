@@ -20,9 +20,11 @@ const SYSTEM_PROMPT = [
   '4. changed 表示派生料号与基础BOM料号不同（不同为 true，相同为 false，无法判断为 null）。',
   '5. confidence 取 0 到 1 之间的小数，表示该行匹配的把握程度。',
   '6. reason 用简短中文说明依据，不超过 30 字。',
+  '7. 除逐行判断外，还要找出模板没有覆盖的差异：如果项目资料库里有某个物料字段（取值是料号），而模板的物料行里没有任何一行代表该物料，就把它放进 extraRows。',
+  '8. extraRows 里的料号同样只能取自输入字段，禁止编造；没有这类差异就返回空数组。',
   '',
   '只输出 json，不要输出解释性文字或 Markdown 代码块。输出格式：',
-  '{"rows":[{"index":数字,"sourceField":字符串或null,"derived":字符串或null,"changed":布尔或null,"confidence":数字,"reason":"简短中文理由"}],"summary":"整体说明"}',
+  '{"rows":[{"index":数字,"sourceField":字符串或null,"derived":字符串或null,"changed":布尔或null,"confidence":数字,"reason":"简短中文理由"}],"extraRows":[{"name":"物料名称","derived":"料号","sourceField":"字段名","qty":"用量","reason":"简短中文理由"}],"summary":"整体说明"}',
   'rows 必须覆盖输入的每一行，index 与输入行的 index 一致，顺序保持一致。',
 ].join('\n');
 
@@ -178,6 +180,13 @@ export async function onRequestPost({ request, env }) {
     degraded,
     attempts,
     rows: parsed.rows,
+    extraRows: Array.isArray(parsed.extraRows) ? parsed.extraRows.slice(0, 100).map(item => ({
+      name: String(item?.name ?? '').slice(0, 200),
+      derived: item?.derived ? String(item.derived).slice(0, 200) : '',
+      sourceField: item?.sourceField ? String(item.sourceField).slice(0, 120) : '',
+      qty: String(item?.qty ?? '').slice(0, 50),
+      reason: String(item?.reason ?? '').slice(0, 200),
+    })).filter(item => item.name && item.derived) : [],
     summary: typeof parsed.summary === 'string' ? parsed.summary.slice(0, 2000) : '',
   });
 }
