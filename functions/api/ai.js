@@ -77,6 +77,94 @@ function contentOf(text) {
   }
 }
 
+const SELF_CHECK_PROMPT = [
+  '你是电视机 BOM 自检工程师。输入包含：自检表的检查项（检查类别、检查内容、单机用量），以及 BOM 明细（子件编码、子件描述、数量）。',
+  '任务：逐条检查项在 BOM 中找出对应物料，并判断该检查项是否满足。',
+  '',
+  '规则：',
+  '1. 只能引用 BOM 里真实存在的子件编码，禁止编造、拼接或改写编码。',
+  '2. 每条检查项输出 codes 数组：列出 BOM 中与该检查项相关的物料（最多 8 条），每条含 code 和 desc；没有相关物料就返回空数组。',
+  '3. result 只能是 YES / NO / PENDING。BOM 中没有足够证据时返回 PENDING，并在 reason 说明缺什么，不要猜测。',
+  '4. steps 输出 3~5 条简短中文分析步骤，必须体现：检索了哪些关键词或编码段、命中了哪些编码、依据哪条检查要求、得出什么结论。这是可复核的判断依据，不是内部推理原文。',
+  '5. reason 一句话说明结论依据，不超过 40 字；confidence 为 0~1。',
+  '6. 参考物料编码规则：编码为「两位类别码-六位基体-三至八位后缀」，类别码表示物料大类（如 02 外购 PCBA、06 外购遥控器、07 高频头/WIFI 模块、42 扬声器、46 连接器、49 电池）。',
+  '',
+  '只输出 json，不要输出解释性文字或 Markdown 代码块。格式：',
+  '{"rows":[{"index":数字,"codes":[{"code":"编码","desc":"描述"}],"result":"YES|NO|PENDING","reason":"结论依据","steps":["步骤1","步骤2"],"confidence":0.0}],"summary":"整体说明"}',
+].join('\n');
+
+async function handleSelfCheck({ env, payload }) {
+  const checks = Array.isArray(payload?.checks) ? payload.checks.slice(0, 60) : [];
+  const bomRows = Array.isArray(payload?.bomRows) ? payload.bomRows.slice(0, 400) : [];
+  if (!checks.length) return json({ error: '缺少自检表的检查项。' }, 400);
+  if (!bomRows.length) return json({ error: 'BOM 中未解析到物料行。' }, 400);
+
+  const normalizedChecks = checks.map((item, i) => ({
+    index: Number.isFinite(Number(item?.index)) ? Number(item.index) : i,
+    category: String(item?.category ?? '').slice(0, 120),
+    content: String(item?.content ?? '').slice(0, 600),
+    qty: String(item?.qty ?? '').slice(0, 50),
+  }));
+  const normalizedBom = bomRows.map(row => ({
+    code: String(row?.code ?? '').slice(0, 80),
+    desc: String(row?.desc ?? '').slice(0, 300),
+    qty: String(row?.qty ?? '').slice(0, 30),
+  })).filter(row => row.code);
+
+  const userContent = JSON.stringify({
+    checks: normalizedChecks,
+    bomRows: normalizedBom,
+    rules: String(payload?.rules ?? '').slice(0, 2000),
+  });
+  const messages = [
+    { role: 'system', content: SELF_CHECK_PROMPT },
+    { role: 'user', content: userContent },
+  ];
+  const base = String(env.AI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
+  const model = String(env.AI_MODEL || DEFAULT_MODEL);
+  const maxTokens = Number.parseInt(env.AI_MAX_TOKENS, 10) || DEFAULT_MAX_TOKENS;
+
+  let attempt = await callModel({ base, key: env.AI_API_KEY, model, maxTokens, messages, jsonMode: true });
+  let parsed = attempt.ok ? extractJson(contentOf(attempt.text)) : null;
+  let degraded = false;
+  if (!parsed) {
+    degraded = true;
+    const unsupportedJsonMode = attempt.ok === false && /response_format/i.test(attempt.text);
+    const retry = await callModel({ base, key: env.AI_API_KEY, model, maxTokens, messages, jsonMode: !unsupportedJsonMode });
+    if (attempt.ok || retry.ok) attempt = retry;
+    parsed = retry.ok ? extractJson(contentOf(retry.text)) : null;
+  }
+  if (!attempt.ok && !parsed) {
+    return json({ error: `AI 请求失败：${String(attempt.text).slice(0, 500)}` }, 502);
+  }
+  if (!parsed || !Array.isArray(parsed.rows)) {
+    return json({ error: 'AI 返回内容无法解析为自检结果。' }, 502);
+  }
+
+  let envelope = {};
+  try { envelope = JSON.parse(attempt.text); } catch { envelope = {}; }
+
+  return json({
+    ok: true,
+    model: envelope?.model || model,
+    usage: envelope?.usage || null,
+    truncated: envelope?.choices?.[0]?.finish_reason === 'length',
+    degraded,
+    rows: parsed.rows.map(row => ({
+      index: Number(row?.index),
+      codes: Array.isArray(row?.codes) ? row.codes.slice(0, 8).map(c => ({
+        code: String(c?.code ?? '').slice(0, 80),
+        desc: String(c?.desc ?? '').slice(0, 300),
+      })).filter(c => c.code) : [],
+      result: ['YES', 'NO', 'PENDING'].includes(String(row?.result).toUpperCase()) ? String(row.result).toUpperCase() : 'PENDING',
+      reason: String(row?.reason ?? '').slice(0, 400),
+      steps: Array.isArray(row?.steps) ? row.steps.slice(0, 6).map(s => String(s).slice(0, 200)) : [],
+      confidence: Number.isFinite(Number(row?.confidence)) ? Number(row.confidence) : null,
+    })),
+    summary: typeof parsed.summary === 'string' ? parsed.summary.slice(0, 2000) : '',
+  });
+}
+
 async function callModel({ base, key, model, maxTokens, messages, jsonMode }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
@@ -109,6 +197,7 @@ export async function onRequestPost({ request, env }) {
   try { body = await request.json(); } catch { return json({ error: '请求内容不是有效 JSON。' }, 400); }
 
   const task = String(body?.task || '');
+  if (task === 'self-check') return handleSelfCheck({ env, payload: body?.payload || {} });
   if (task !== 'derive-bom') return json({ error: `不支持的 AI 任务：${task || '未指定'}` }, 400);
 
   const payload = body?.payload || {};

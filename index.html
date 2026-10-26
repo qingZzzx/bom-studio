@@ -28,6 +28,7 @@
         <div class="nav active" data-page="library" role="button" tabindex="0"><i class="nav-icon">▤</i><span>项目资料库</span></div>
         <div class="nav" data-page="generate" role="button" tabindex="0"><i class="nav-icon">▣</i><span>BOM 生成</span></div>
         <div class="nav" data-page="history" role="button" tabindex="0"><i class="nav-icon">◷</i><span>生成记录</span></div>
+        <div class="nav" data-page="selfcheck" role="button" tabindex="0"><i class="nav-icon">✓</i><span>BOM 自检</span></div>
       </div>
       <div class="side-foot">BOM Studio · 云端资料库</div>
     </aside>
@@ -54,6 +55,26 @@
             <div class="card-head"><div><h2 id="projectDetailTitle">项目 BOM 内容</h2><p id="projectDetailMeta">点击项目后显示。</p></div><div class="card-head-actions"><button class="btn" id="editProjectBtn">编辑内容</button><button class="btn primary" id="saveProjectBtn" hidden>保存修改</button><button class="btn" id="cancelEditProjectBtn" hidden>取消</button><button class="btn danger" id="deleteProjectBtn">删除项目</button><button class="btn primary" id="useProjectBtn">用于 BOM 生成</button></div></div>
             <div class="card-body"><div class="table-wrap"><table class="bom-table detail-table"><thead id="projectDetailHead"><tr><th>字段</th><th>内容</th></tr></thead><tbody id="projectDetailRows"></tbody></table></div></div>
           </section>
+        </section>
+        <section class="page" id="page-selfcheck" data-page-view="selfcheck" hidden>
+          <div class="hero"><div><h1>BOM 自检</h1><p>导入 BOM 与自检表模板，由 AI 逐条核对物编与描述，并给出可复核的判断过程。</p></div><span class="tag">AI 自检 · 结果可导出</span></div>
+          <div class="grid">
+            <section class="card"><div class="card-head"><div><h2>导入文件</h2><p>BOM 支持 ALV/ERP 导出的明细表，自检表支持 NPI BOM 自查表模板。</p></div></div><div class="card-body">
+              <label class="upload" id="scBomDrop"><div><div class="file-icon">▦</div><b>导入 BOM 文件</b><span>含「子件编码 / 子件描述」或「物料编码 / 描述」的 .xlsx / .xls</span></div><input id="scBomFile" type="file" accept=".xlsx,.xls" /></label>
+              <div class="file-state" id="scBomState"><span>✓</span><span id="scBomName"></span><button type="button" data-sc-clear="bom">×</button></div>
+              <label class="upload" id="scTplDrop" style="margin-top:14px"><div><div class="file-icon">▧</div><b>导入自检表模板</b><span>含「检查类别 / 检查内容 / 物编 / 检查结果」列</span></div><input id="scTplFile" type="file" accept=".xlsx,.xls" /></label>
+              <div class="file-state" id="scTplState"><span>✓</span><span id="scTplName"></span><button type="button" data-sc-clear="tpl">×</button></div>
+              <div class="form-row"><div class="field"><label>BOM 工作表</label><select id="scBomSheet"></select></div><div class="field"><label>自检表工作表</label><select id="scTplSheet"></select></div></div>
+              <div id="scStatus" class="status" style="display:none"></div>
+              <div class="btns"><button class="btn" id="scResetBtn" type="button">重置</button><button class="btn primary" id="scRunBtn" type="button" disabled>开始 AI 自检</button></div>
+            </div></section>
+            <section class="card"><div class="card-head"><div><h2>自检说明</h2><p>AI 只依据 BOM 中真实存在的物编与描述判断，证据不足时给出「待确认」。</p></div></div><div class="card-body">
+              <p class="hint" style="margin-top:0">判断依据来自自检表每一行的「检查内容」，结合物料编码规则（两位类别码-六位基体-三至八位后缀）与 BOM 中的子件描述。</p>
+              <div class="metrics"><div class="metric"><div class="num" id="scCheckMetric">0</div><div class="lab">检查项</div></div><div class="metric"><div class="num" id="scBomMetric">0</div><div class="lab">BOM 物料行</div></div><div class="metric"><div class="num" id="scPassMetric">0</div><div class="lab">通过 / 待确认 / 不通过</div></div></div>
+              <p class="hint">「分析过程」展示的是可复核的判断依据（检索了什么、命中了哪些编码、依据哪条要求），不是模型内部的原始推理文本。</p>
+            </div></section>
+          </div>
+          <section class="card result"><div class="card-head"><div><h2>自检结果</h2><p>每条检查项列出命中的物编、描述、结论与判断依据。</p></div><button class="btn primary" id="scExportBtn" type="button" disabled>导出自检表 Excel</button></div><div class="card-body"><div id="scEmpty" class="empty"><div class="empty-icon">✓</div>导入 BOM 与自检表后，点击「开始 AI 自检」。</div><div id="scResultArea" hidden><div id="scSummary" class="status"></div><div class="table-wrap"><table class="bom-table"><thead><tr><th>序号</th><th>检查类别</th><th>检查内容</th><th>命中物编</th><th>描述</th><th>结论</th><th>依据</th><th>分析过程</th></tr></thead><tbody id="scRows"></tbody></table></div></div></div></section>
         </section>
 
         <section class="page" id="page-generate" data-page-view="generate" hidden>
@@ -201,7 +222,8 @@
       const pageMeta = {
         library: ['项目资料库', '大盘 / 项目管理'],
         generate: ['BOM 生成', '项目 / 模板 / 派生'],
-        history: ['生成记录', '派生 / 历史记录']
+        history: ['生成记录', '派生 / 历史记录'],
+        selfcheck: ['BOM 自检', '自检表 / 物编 / 判定']
       };
       function navigate(page, updateHash=true) {
         if (!pageMeta[page]) page='library';
@@ -795,6 +817,297 @@
       const resultTarget = $('resultRows');
       if (resultTarget) observer.observe(resultTarget, { childList: true });
       syncAvailability();
+    })();
+  </script>
+  <script>
+    (() => {
+      const $ = id => document.getElementById(id);
+      const sc = { bomBook: null, bomName: '', bomRows: [], tplBuffer: null, tplBook: null, tplName: '', checks: [], results: [], meta: null };
+      const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      if (!$('scRunBtn')) return;
+
+      const status = (msg, type = '') => {
+        const el = $('scStatus');
+        el.style.display = 'flex';
+        el.className = 'status ' + type;
+        el.textContent = msg;
+      };
+
+      function rowsOf(book, name) {
+        return XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1, defval: '', raw: false, blankrows: false });
+      }
+      function findCol(headers, re, exclude) {
+        return headers.findIndex(h => re.test(String(h || '')) && !(exclude && exclude.test(String(h || ''))));
+      }
+      function bomSheetScore(book, name) {
+        const rows = rowsOf(book, name).slice(0, 12);
+        let best = 0;
+        rows.forEach(row => {
+          const text = row.map(v => String(v || '')).join('|');
+          let score = 0;
+          if (/子件编码|物料编码|物料代码|元件编码/.test(text)) score += 3;
+          if (/子件描述|物料描述|描述|物料名称/.test(text)) score += 2;
+          if (/数量|用量/.test(text)) score += 1;
+          best = Math.max(best, score);
+        });
+        return best;
+      }
+      function parseBom(book) {
+        const candidates = book.SheetNames.map(n => ({ n, s: bomSheetScore(book, n) })).sort((a, b) => b.s - a.s);
+        const sheet = candidates[0] && candidates[0].s >= 4 ? candidates[0].n : '';
+        if (!sheet) return { rows: [], sheet: '', headers: [], headerRow: -1 };
+        const raw = rowsOf(book, sheet);
+        let headerRow = -1, headers = [];
+        for (let i = 0; i < Math.min(raw.length, 20); i += 1) {
+          const text = raw[i].map(v => String(v || '')).join('|');
+          if (/子件编码|物料编码|物料代码|元件编码/.test(text) && /子件描述|物料描述|描述|物料名称/.test(text)) { headerRow = i; headers = raw[i].map(v => String(v || '')); break; }
+        }
+        if (headerRow < 0) return { rows: [], sheet, headers: [], headerRow: -1 };
+        const codeIdx = findCol(headers, /子件编码|物料编码|物料代码|元件编码/);
+        const descIdx = findCol(headers, /子件描述|物料描述|描述|物料名称/);
+        const qtyIdx = findCol(headers, /组件数量|数量|用量/);
+        const rows = raw.slice(headerRow + 1).map(r => ({
+          code: String(r[codeIdx] ?? '').trim(),
+          desc: String(r[descIdx] ?? '').trim(),
+          qty: qtyIdx >= 0 ? String(r[qtyIdx] ?? '').trim() : '',
+        })).filter(r => r.code);
+        return { rows, sheet, headers, headerRow };
+      }
+      function parseTemplate(book) {
+        for (const name of book.SheetNames) {
+          const raw = rowsOf(book, name);
+          const ref = book.Sheets[name] && book.Sheets[name]['!ref'];
+          const origin = ref ? XLSX.utils.decode_range(ref).s : { r: 0, c: 0 };
+          for (let i = 0; i < Math.min(raw.length, 30); i += 1) {
+            const headers = raw[i].map(v => String(v || ''));
+            const contentIdx = findCol(headers, /检查内容|检查项/);
+            const resultIdx = findCol(headers, /检查结果|结果/);
+            if (contentIdx < 0 || resultIdx < 0) continue;
+            const codeIdx = findCol(headers, /^物编|物料编码|物料代码/, /基础|参考|电源|DR/);
+            const catIdx = findCol(headers, /检查类别|类别/);
+            const noIdx = findCol(headers, /^序号$/);
+            const qtyIdx = findCol(headers, /单机用量|用量/);
+            const noteIdx = findCol(headers, /备注/);
+            const checks = raw.slice(i + 1).map((r, k) => ({
+              index: k,
+              no: noIdx >= 0 ? String(r[noIdx] ?? '').trim() : String(k + 1),
+              category: catIdx >= 0 ? String(r[catIdx] ?? '').trim() : '',
+              content: String(r[contentIdx] ?? '').trim(),
+              qty: qtyIdx >= 0 ? String(r[qtyIdx] ?? '').trim() : '',
+              excelRow: origin.r + i + 2 + k,
+            })).filter(c => c.content);
+            if (checks.length) {
+              return { sheet: name, headerRow: origin.r + i + 1, checks, cols: { base: origin.c, code: codeIdx, result: resultIdx, note: noteIdx, content: contentIdx } };
+            }
+          }
+        }
+        return null;
+      }
+
+      function refresh() {
+        const ready = Boolean(sc.bomRows.length && sc.checks.length);
+        $('scRunBtn').disabled = !ready;
+        $('scBomMetric').textContent = sc.bomRows.length;
+        $('scCheckMetric').textContent = sc.checks.length;
+      }
+      function setFile(kind, name) {
+        $(kind === 'bom' ? 'scBomName' : 'scTplName').textContent = name;
+        $(kind === 'bom' ? 'scBomState' : 'scTplState').classList.add('show');
+      }
+      function handleBom(file) {
+        if (!file) return;
+        if (!window.XLSX) { status('Excel 解析组件未加载，请刷新页面后重试。', 'error'); return; }
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            const book = XLSX.read(e.target.result, { type: 'array', cellText: true, cellDates: true });
+            const parsed = parseBom(book);
+            if (!parsed.rows.length) { status('未在 BOM 中找到「子件编码 + 子件描述」列，请确认文件格式。', 'error'); return; }
+            sc.bomBook = book; sc.bomName = file.name; sc.bomRows = parsed.rows;
+            $('scBomSheet').innerHTML = book.SheetNames.map(n => `<option ${n === parsed.sheet ? 'selected' : ''}>${esc(n)}</option>`).join('');
+            setFile('bom', `${file.name} · ${parsed.rows.length} 行`);
+            status(`已解析 BOM：工作表「${parsed.sheet}」，${parsed.rows.length} 条物料。`, 'ok');
+            refresh();
+          } catch (err) { status('BOM 解析失败：' + err.message, 'error'); }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+      function handleTpl(file) {
+        if (!file) return;
+        if (!window.XLSX) { status('Excel 解析组件未加载，请刷新页面后重试。', 'error'); return; }
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            const buffer = e.target.result;
+            const book = XLSX.read(buffer, { type: 'array', cellText: true, cellStyles: true });
+            const parsed = parseTemplate(book);
+            if (!parsed) { status('未找到包含「检查内容 + 检查结果」的自检表工作表。', 'error'); return; }
+            sc.tplBuffer = buffer; sc.tplBook = book; sc.tplName = file.name; sc.checks = parsed.checks; sc.meta = parsed;
+            $('scTplSheet').innerHTML = book.SheetNames.map(n => `<option ${n === parsed.sheet ? 'selected' : ''}>${esc(n)}</option>`).join('');
+            setFile('tpl', `${file.name} · ${parsed.sheet} · ${parsed.checks.length} 项`);
+            status(`已解析自检表：${parsed.checks.length} 个检查项。`, 'ok');
+            refresh();
+          } catch (err) { status('自检表解析失败：' + err.message, 'error'); }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      function bindDrop(dropId, inputId, handler) {
+        const drop = $(dropId), input = $(inputId);
+        drop.addEventListener('click', () => input.click());
+        input.addEventListener('change', e => handler(e.target.files[0]));
+        ['dragenter', 'dragover'].forEach(evt => drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.add('drag'); }));
+        ['dragleave', 'drop'].forEach(evt => drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+        drop.addEventListener('drop', e => handler(e.dataTransfer.files[0]));
+      }
+      bindDrop('scBomDrop', 'scBomFile', handleBom);
+      bindDrop('scTplDrop', 'scTplFile', handleTpl);
+      $('scBomSheet').addEventListener('change', e => {
+        if (!sc.bomBook) return;
+        const raw = rowsOf(sc.bomBook, e.target.value);
+        const parsed = parseBom(sc.bomBook);
+        sc.bomRows = parsed.rows;
+        $('scBomMetric').textContent = sc.bomRows.length;
+        refresh();
+      });
+      $('scResetBtn').addEventListener('click', () => {
+        sc.bomRows = []; sc.checks = []; sc.results = [];
+        $('scBomState').classList.remove('show'); $('scTplState').classList.remove('show');
+        $('scResultArea').hidden = true; $('scEmpty').hidden = false; $('scExportBtn').disabled = true;
+        $('scStatus').style.display = 'none';
+        $('scBomFile').value = ''; $('scTplFile').value = '';
+        refresh();
+      });
+
+      function render() {
+        const passed = sc.results.filter(r => r.result === 'YES').length;
+        const failed = sc.results.filter(r => r.result === 'NO').length;
+        const pending = sc.results.filter(r => r.result === 'PENDING').length;
+        $('scPassMetric').textContent = `${passed} / ${pending} / ${failed}`;
+        $('scSummary').className = 'status ' + (failed ? 'error' : 'ok');
+        $('scSummary').textContent = `共 ${sc.results.length} 项：通过 ${passed}，待确认 ${pending}，不通过 ${failed}。`;
+        $('scRows').innerHTML = sc.results.map((r, i) => {
+          const tagCls = r.result === 'YES' ? 'diff-same' : r.result === 'NO' ? 'diff-changed' : 'diff-unknown';
+          const label = r.result === 'YES' ? '通过' : r.result === 'NO' ? '不通过' : '待确认';
+          const codes = r.codes.map(c => esc(c.code)).join('<br>') || '—';
+          const descs = r.codes.map(c => esc(c.desc)).join('<br>') || '—';
+          const steps = r.steps.length ? r.steps.map((s, k) => `<div>${k + 1}. ${esc(s)}</div>`).join('') : '<div>无</div>';
+          return `<tr><td>${esc(r.no)}</td><td>${esc(r.category)}</td><td>${esc(r.content)}</td>`
+            + `<td>${codes}</td><td><span class="ai-reason">${descs}</span></td>`
+            + `<td><span class="diff-tag ${tagCls}">${label}</span></td>`
+            + `<td><span class="ai-reason">${esc(r.reason || '—')}</span></td>`
+            + `<td><button class="btn" type="button" data-steps="${i}">展开</button></td></tr>`
+            + `<tr id="scSteps${i}" hidden><td colspan="8"><div class="ai-panel" style="margin:0"><strong>判断过程</strong><div class="ai-reason" style="max-width:none;margin-top:6px">${steps}</div></div></td></tr>`;
+        }).join('');
+        document.querySelectorAll('[data-steps]').forEach(btn => btn.addEventListener('click', () => {
+          const row = $('scSteps' + btn.dataset.steps);
+          row.hidden = !row.hidden;
+          btn.textContent = row.hidden ? '展开' : '收起';
+        }));
+        $('scEmpty').hidden = true;
+        $('scResultArea').hidden = false;
+        $('scExportBtn').disabled = false;
+      }
+
+      async function run() {
+        if (!sc.bomRows.length || !sc.checks.length) return;
+        $('scRunBtn').disabled = true;
+        $('scRunBtn').textContent = 'AI 检测中…';
+        status(`正在提交 ${sc.checks.length} 个检查项与 ${sc.bomRows.length} 条 BOM 物料，等待模型判断…`);
+        try {
+          const result = await window.bomStudioApiFetch('/api/ai', {
+            method: 'POST',
+            body: JSON.stringify({
+              task: 'self-check',
+              payload: {
+                checks: sc.checks.map(c => ({ index: c.index, category: c.category, content: c.content, qty: c.qty })),
+                bomRows: sc.bomRows.slice(0, 400),
+              },
+            }),
+          });
+          const byIndex = new Map();
+          (result.rows || []).forEach(r => byIndex.set(Number(r.index), r));
+          sc.results = sc.checks.map((c, i) => {
+            const hit = byIndex.get(c.index) ?? byIndex.get(i) ?? {};
+            return {
+              index: c.index, no: c.no, category: c.category, content: c.content,
+              excelRow: c.excelRow,
+              codes: Array.isArray(hit.codes) ? hit.codes : [],
+              result: hit.result || 'PENDING',
+              reason: hit.reason || '',
+              steps: Array.isArray(hit.steps) ? hit.steps : [],
+            };
+          });
+          render();
+          status(result.summary || 'AI 自检完成。', 'ok');
+        } catch (err) {
+          status('AI 自检失败：' + err.message, 'error');
+        } finally {
+          $('scRunBtn').disabled = false;
+          $('scRunBtn').textContent = '开始 AI 自检';
+        }
+      }
+      $('scRunBtn').addEventListener('click', run);
+
+      function colLetter(i) {
+        let n = i, out = '';
+        while (n >= 0) { out = String.fromCharCode(65 + (n % 26)) + out; n = Math.floor(n / 26) - 1; }
+        return out;
+      }
+      function xesc(v) { return String(v ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+      function writeCell(rowXml, col, value) {
+        const re = new RegExp('<c r="' + col + '(\\d+)"([^>]*?)(/>|>[\\s\\S]*?</c>)');
+        const m = rowXml.match(re);
+        if (!m) return rowXml;
+        const style = (m[2] || '').replace(/\st="[^"]*"/g, '');
+        return rowXml.replace(re, '<c r="' + col + m[1] + '"' + style + ' t="inlineStr"><is><t xml:space="preserve">' + xesc(value) + '</t></is></c>');
+      }
+      function isEmptyCell(rowXml, col) {
+        const m = rowXml.match(new RegExp('<c r="' + col + '(\\d+)"([^>]*?)(/>|>([\\s\\S]*?)</c>)'));
+        if (!m) return true;
+        if (m[3] === '/>') return true;
+        const inner = m[4] || '';
+        return !/<v>[^<]+<\/v>/.test(inner) && !/<t[^>]*>[^<]+<\/t>/.test(inner);
+      }
+
+      async function exportSheet() {
+        if (!sc.results.length) throw new Error('请先执行 AI 自检。');
+        if (!sc.tplBuffer) throw new Error('自检表原文件未保留，请重新导入。');
+        const meta = sc.meta;
+        const base = meta.cols.base || 0;
+        const codeCol = meta.cols.code >= 0 ? colLetter(base + meta.cols.code) : '';
+        const resultCol = colLetter(base + meta.cols.result);
+        const noteCol = meta.cols.note >= 0 ? colLetter(base + meta.cols.note) : '';
+        const zip = await JSZip.loadAsync(sc.tplBuffer);
+        const path = await window.bomStudioInternal.sheetPath(zip, $('scTplSheet').value);
+        let xml = await zip.file(path).async('string');
+        sc.results.forEach(r => {
+          const re = new RegExp('<row\\b[^>]*?\\sr="' + r.excelRow + '"[^>]*?>[\\s\\S]*?</row>');
+          const m = xml.match(re);
+          if (!m) return;
+          let rowXml = m[0];
+          if (codeCol) rowXml = writeCell(rowXml, codeCol, r.codes.map(c => c.code).join('\n'));
+          rowXml = writeCell(rowXml, resultCol, r.result === 'YES' ? 'YES' : r.result === 'NO' ? 'NO' : '待确认');
+          if (noteCol && isEmptyCell(rowXml, noteCol) && r.reason) rowXml = writeCell(rowXml, noteCol, r.reason);
+          xml = xml.replace(m[0], rowXml);
+        });
+        zip.file(path, xml);
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'BOM自检表_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+        document.body.appendChild(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      }
+      $('scExportBtn').addEventListener('click', async () => {
+        const btn = $('scExportBtn');
+        const label = btn.textContent;
+        btn.disabled = true;
+        try { await exportSheet(); status('自检表已导出。', 'ok'); }
+        catch (err) { status('导出失败：' + err.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = label; }
+      });
+      refresh();
     })();
   </script>
 </body>
