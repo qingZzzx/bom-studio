@@ -1010,6 +1010,20 @@
         $('scExportBtn').disabled = false;
       }
 
+      function codeAllowed(category, code) {
+        const c = String(category || '').replace(/\s+/g, '');
+        const v = String(code || '').toUpperCase();
+        if (!v) return false;
+        if (/^电池/.test(c)) return /^49/.test(v);
+        if (/^遥控器/.test(c)) return /^06/.test(v);
+        if (/^喇叭/.test(c)) return /^42/.test(v);
+        if (/^电源线/.test(c)) return /^51/.test(v);
+        if (/^主芯片/.test(c)) return /^13/.test(v) || (/^02/.test(v) && !/^02T/.test(v));
+        if (/转接线|MINI|信号线|AV线/i.test(c)) return /^41/.test(v);
+        if (/电源板|适配器/.test(c)) return /^81/.test(v);
+        return true;
+      }
+
       async function run() {
         if (!sc.bomRows.length || !sc.checks.length) return;
         $('scRunBtn').disabled = true;
@@ -1045,13 +1059,18 @@
               };
             }
             const hit = byIndex.get(c.index) ?? byIndex.get(i) ?? {};
+            const rawCodes = Array.isArray(hit.codes) ? hit.codes : [];
+            const keptCodes = rawCodes.filter(x => codeAllowed(c.category, x.code));
+            const droppedCodes = rawCodes.filter(x => !codeAllowed(c.category, x.code));
+            const steps = Array.isArray(hit.steps) ? [...hit.steps] : [];
+            if (droppedCodes.length) steps.push('已按类别规则剔除不属于本项的编码：' + droppedCodes.map(x => x.code).join('、'));
             return {
               index: c.index, no: c.no, category: c.category, content: c.content,
               excelRow: c.excelRow,
-              codes: Array.isArray(hit.codes) ? hit.codes : [],
+              codes: keptCodes,
               result: hit.result || 'PENDING',
               reason: hit.reason || '',
-              steps: Array.isArray(hit.steps) ? hit.steps : [],
+              steps,
             };
           });
           render();
