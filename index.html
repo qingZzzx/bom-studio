@@ -983,14 +983,15 @@
         const passed = sc.results.filter(r => r.result === 'YES').length;
         const failed = sc.results.filter(r => r.result === 'NO').length;
         const pending = sc.results.filter(r => r.result === 'PENDING').length;
+        const skippedCount = sc.results.filter(r => r.result === 'SKIP').length;
         $('scPassMetric').textContent = `${passed} / ${pending} / ${failed}`;
         $('scSummary').className = 'status ' + (failed ? 'error' : 'ok');
-        $('scSummary').textContent = `共 ${sc.results.length} 项：通过 ${passed}，待确认 ${pending}，不通过 ${failed}。`;
+        $('scSummary').textContent = `共 ${sc.results.length} 项：通过 ${passed}，待确认 ${pending}，不通过 ${failed}${skippedCount ? `，已跳过 ${skippedCount}` : ''}。`;
         $('scRows').innerHTML = sc.results.map((r, i) => {
           const tagCls = r.result === 'YES' ? 'diff-same' : r.result === 'NO' ? 'diff-changed' : 'diff-unknown';
-          const label = r.result === 'YES' ? '通过' : r.result === 'NO' ? '不通过' : '待确认';
-          const codes = r.codes.map(c => esc(c.code)).join('<br>') || '—';
-          const descs = r.codes.map(c => esc(c.desc)).join('<br>') || '—';
+          const label = r.result === 'YES' ? '通过' : r.result === 'NO' ? '不通过' : r.result === 'SKIP' ? '跳过' : '待确认';
+          const codes = r.codes.map(c => esc(c.code)).join('<br>') || '/';
+          const descs = r.codes.map(c => esc(c.desc)).join('<br>') || '/';
           const steps = r.steps.length ? r.steps.map((s, k) => `<div>${k + 1}. ${esc(s)}</div>`).join('') : '<div>无</div>';
           return `<tr><td>${esc(r.no)}</td><td>${esc(r.category)}</td><td>${esc(r.content)}</td>`
             + `<td>${codes}</td><td><span class="ai-reason">${descs}</span></td>`
@@ -1013,14 +1014,22 @@
         if (!sc.bomRows.length || !sc.checks.length) return;
         $('scRunBtn').disabled = true;
         $('scRunBtn').textContent = 'AI 检测中…';
-        status(`正在提交 ${sc.checks.length} 个检查项与 ${sc.bomRows.length} 条 BOM 物料，等待模型判断…`);
+        const skipRe = /环保/;
+        const skipped = sc.checks.filter(c => skipRe.test(c.category) || skipRe.test(c.content));
+        const active = sc.checks.filter(c => !skipped.includes(c));
+        status(`正在提交 ${active.length} 个检查项与 ${sc.bomRows.length} 条 BOM 物料，等待模型判断…（跳过 ${skipped.length} 项）`);
         try {
           const result = await window.bomStudioApiFetch('/api/ai', {
             method: 'POST',
             body: JSON.stringify({
               task: 'self-check',
               payload: {
-                checks: sc.checks.map(c => ({ index: c.index, category: c.category, content: c.content, qty: c.qty })),
+                checks: active.map(c => ({
+                  index: c.index,
+                  category: String(c.category || '').replace(/\s+/g, ' ').trim(),
+                  content: String(c.content || '').replace(/[ \t]+/g, ' ').trim(),
+                  qty: String(c.qty || '').trim(),
+                })),
                 bomRows: sc.bomRows.slice(0, 400),
               },
             }),
@@ -1028,6 +1037,13 @@
           const byIndex = new Map();
           (result.rows || []).forEach(r => byIndex.set(Number(r.index), r));
           sc.results = sc.checks.map((c, i) => {
+            if (skipped.includes(c)) {
+              return {
+                index: c.index, no: c.no, category: c.category, content: c.content,
+                excelRow: c.excelRow, codes: [], result: 'SKIP',
+                reason: '按需求跳过', steps: ['该检查项按需求跳过，不参与 AI 判断。'],
+              };
+            }
             const hit = byIndex.get(c.index) ?? byIndex.get(i) ?? {};
             return {
               index: c.index, no: c.no, category: c.category, content: c.content,
@@ -1086,9 +1102,10 @@
           const m = xml.match(re);
           if (!m) return;
           let rowXml = m[0];
-          if (codeCol) rowXml = writeCell(rowXml, codeCol, r.codes.map(c => c.code).join('\n'));
-          rowXml = writeCell(rowXml, resultCol, r.result === 'YES' ? 'YES' : r.result === 'NO' ? 'NO' : '待确认');
-          if (noteCol && isEmptyCell(rowXml, noteCol) && r.reason) rowXml = writeCell(rowXml, noteCol, r.reason);
+          if (codeCol) rowXml = writeCell(rowXml, codeCol, r.codes.length ? r.codes.map(c => c.code).join('\n') : '/');
+          const resultText = r.result === 'YES' ? 'YES' : r.result === 'NO' ? 'NO' : r.result === 'SKIP' ? '/' : '待确认';
+          rowXml = writeCell(rowXml, resultCol, resultText);
+          if (r.result !== 'SKIP' && noteCol && isEmptyCell(rowXml, noteCol) && r.reason) rowXml = writeCell(rowXml, noteCol, r.reason);
           xml = xml.replace(m[0], rowXml);
         });
         zip.file(path, xml);
