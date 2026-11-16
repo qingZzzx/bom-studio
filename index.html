@@ -1158,5 +1158,138 @@
       refresh();
     })();
   </script>
+  <script>
+    (() => {
+      // ---------- 生成页说明 ----------
+      const style = document.createElement('style');
+      style.textContent = '.notice-bar{margin:-4px 0 18px;padding:11px 16px;border:1px solid #f3d9b0;background:#fff8ec;color:#8a5a0b;border-radius:8px;font-size:13px;font-weight:600}.notice-bar b{color:#b45309}';
+      document.head.appendChild(style);
+
+      const hero = document.querySelector('#page-generate .hero');
+      if (hero && !document.querySelector('#page-generate .notice-bar')) {
+        const bar = document.createElement('div');
+        bar.className = 'notice-bar';
+        bar.innerHTML = '<b>注意：</b>此工作台不可作为基础 BOM 创建，仅用于派生 BOM 模板创建。';
+        hero.insertAdjacentElement('afterend', bar);
+      }
+
+      const libraryHint = document.getElementById('selectedProjectHint');
+      if (libraryHint && libraryHint.parentElement && !libraryHint.parentElement.querySelector('.sc-inline-hint')) {
+        const hint = document.createElement('div');
+        hint.className = 'sc-inline-hint';
+        hint.style.cssText = 'margin-top:6px;color:#b45309;font-size:12px;font-weight:600';
+        hint.textContent = '请导入准确 BOM 清单的项目资料库';
+        libraryHint.parentElement.appendChild(hint);
+      }
+
+      const sheetSelect = document.getElementById('templateSheet');
+      if (sheetSelect) {
+        const field = sheetSelect.closest('.field');
+        if (field && !field.querySelector('.sc-inline-hint')) {
+          const hint = document.createElement('div');
+          hint.className = 'sc-inline-hint';
+          hint.style.cssText = 'margin-top:6px;color:#b45309;font-size:12px;font-weight:600';
+          hint.textContent = '请选择对应 BOM 模板内参考项目派生';
+          field.appendChild(hint);
+        }
+      }
+
+      // ---------- 导出文档水印 ----------
+      const WM_TEXT = 'AI生成，请核对后输出';
+      function watermarkBlob() {
+        return new Promise(resolve => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1200;
+            canvas.height = 1200;
+            const ctx = canvas.getContext('2d');
+            ctx.font = 'bold 44px "Microsoft YaHei", "Microsoft YaHei UI", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(140,140,140,0.28)';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.save();
+            ctx.translate(600, 600);
+            ctx.rotate(-Math.PI / 6);
+            for (let y = -700; y <= 700; y += 230) {
+              for (let x = -700; x <= 700; x += 640) ctx.fillText(WM_TEXT, x, y);
+            }
+            ctx.restore();
+            canvas.toBlob(blob => resolve(blob), 'image/png');
+          } catch (error) {
+            console.warn('生成水印失败', error);
+            resolve(null);
+          }
+        });
+      }
+
+      async function addWatermark(zip) {
+        const sheets = Object.keys(zip.files).filter(name => /^xl\/worksheets\/sheet[^/]*\.xml$/.test(name) && !zip.files[name].dir);
+        if (!sheets.length) return;
+        if (!zip.file('xl/media/bom-watermark.png')) {
+          const blob = await watermarkBlob();
+          if (!blob) return;
+          zip.file('xl/media/bom-watermark.png', await blob.arrayBuffer());
+        }
+        const ctEntry = zip.file('[Content_Types].xml');
+        if (ctEntry) {
+          let ct = await ctEntry.async('string');
+          if (!/Extension="png"/i.test(ct)) {
+            ct = ct.replace('</Types>', '<Default Extension="png" ContentType="image/png"/></Types>');
+            zip.file('[Content_Types].xml', ct);
+          }
+        }
+        for (const sheetPath of sheets) {
+          let xml = await zip.file(sheetPath).async('string');
+          if (/<picture\b/.test(xml)) continue;
+          const fileName = sheetPath.split('/').pop();
+          const relPath = sheetPath.replace(/[^/]+$/, '') + '_rels/' + fileName + '.rels';
+          const relEntry = zip.file(relPath);
+          let rels = relEntry
+            ? await relEntry.async('string')
+            : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+          let relId = 'rIdWm1';
+          let n = 1;
+          while (new RegExp('Id="' + relId + '"').test(rels)) { n += 1; relId = 'rIdWm' + n; }
+          rels = rels.replace('</Relationships>', '<Relationship Id="' + relId + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/bom-watermark.png"/></Relationships>');
+          zip.file(relPath, rels);
+          const tailTags = ['<oleObjects', '<controls', '<webPublishItems', '<tableParts', '<extLst'];
+          let insertAt = -1;
+          tailTags.forEach(tag => {
+            const i = xml.indexOf(tag);
+            if (i >= 0 && (insertAt < 0 || i < insertAt)) insertAt = i;
+          });
+          const picture = '<picture r:id="' + relId + '"/>';
+          xml = insertAt >= 0
+            ? xml.slice(0, insertAt) + picture + xml.slice(insertAt)
+            : xml.replace('</worksheet>', picture + '</worksheet>');
+          zip.file(sheetPath, xml);
+        }
+      }
+
+      function patchJSZip() {
+        if (!window.JSZip || !JSZip.prototype || JSZip.prototype.__bomWatermarkPatched) return Boolean(window.JSZip && JSZip.prototype);
+        const original = JSZip.prototype.generateAsync;
+        JSZip.prototype.generateAsync = async function (...args) {
+          if (!this.__bomWatermarkApplied) {
+            try {
+              await addWatermark(this);
+              this.__bomWatermarkApplied = true;
+            } catch (error) {
+              console.warn('写入水印失败，按原文件导出', error);
+            }
+          }
+          return original.apply(this, args);
+        };
+        JSZip.prototype.__bomWatermarkPatched = true;
+        return true;
+      }
+      if (!patchJSZip()) {
+        let attempts = 0;
+        const timer = setInterval(() => {
+          if (patchJSZip() || ++attempts > 120) clearInterval(timer);
+        }, 250);
+      }
+    })();
+  </script>
 </body>
 </html>
